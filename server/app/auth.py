@@ -43,16 +43,7 @@ class SessionStore:
 
 session_store = SessionStore(ttl_seconds=config.SESSION_TTL_HOURS * 3600)
 
-def verify_admin_password(password: str) -> bool:
-    if not config.ADMIN_PASSWORD:
-        return False
-    return hmac.compare_digest(password.encode("utf-8"), config.ADMIN_PASSWORD.encode("utf-8"))
-
-def verify_client_token(auth_header: Optional[str]) -> Tuple[bool, str, str]:
-    """
-    Checks Authorization: Bearer <CLIENT_TOKEN>
-    Returns (is_valid, error_code, error_message)
-    """
+def verify_client_token_with_secret(auth_header: Optional[str], expected_token: str) -> Tuple[bool, str, str]:
     if not auth_header:
         return False, "UNAUTHORIZED", "缺少认证凭据，请提供 Authorization: Bearer <token>"
 
@@ -61,7 +52,18 @@ def verify_client_token(auth_header: Optional[str]) -> Tuple[bool, str, str]:
         return False, "INVALID_TOKEN_FORMAT", "凭据格式错误，应为: Authorization: Bearer <token>"
 
     token = parts[1]
-    if not config.CLIENT_TOKEN or not hmac.compare_digest(token.encode("utf-8"), config.CLIENT_TOKEN.encode("utf-8")):
+    if not expected_token or not hmac.compare_digest(token.encode("utf-8"), expected_token.encode("utf-8")):
         return False, "FORBIDDEN", "无效的客户端下载凭据"
 
     return True, "", ""
+
+def verify_client_token(auth_header: Optional[str]) -> Tuple[bool, str, str]:
+    # Lazy import to avoid circular dependency
+    from .main import publisher
+    expected = publisher.get_effective_client_token()
+    return verify_client_token_with_secret(auth_header, expected)
+
+def verify_admin_password(password: str) -> bool:
+    # Lazy import to avoid circular dependency
+    from .main import publisher
+    return publisher.verify_password(password)

@@ -10,6 +10,19 @@
     "status": "verified",
     "status_label": "已验证",
     "sha256": "40c2f21499d4382012845484ec6a386af4fefcc40a4c89770491fbba44dfb2fa",
-    "notes": "当前客户端推荐版本，已在 NeoForge 26.1.2.109 环境通过完整测试"
+    "notes": "NeoForge 26.1.2 客户端推荐版本，已在 NeoForge 26.1.2.109 环境通过测试"
+  },
+  {
+    "id": "forge-1.20.1",
+    "filename": "modsync-forge-1.20.1-0.2.0.jar",
+    "mod_version": "0.2.0",
+    "loader": "Forge",
+    "mc_range": "[1.20.1, 1.20.2)",
+    "loader_range": "[47.1.0, )",
+    "java_version": "Java 17+",
+    "status": "verified",
+    "status_label": "已验证",
+    "sha256": "d1202ebf1f5a2e4556d475c016e14c27d5a0598d4f2838f657eec4addb1fe501",
+    "notes": "Forge 1.20.1 客户端推荐版本，已在 Forge 47.3.33 环境通过测试，兼容 47.1.0+"
   }
 ]

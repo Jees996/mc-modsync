@@ -45,29 +45,30 @@ ModSync/
 
 ## 快速开始
 
-### 1. 服务端部署 (Docker Compose)
+### 1. 服务端一键部署 (推荐)
 
-复制配置模板并填入您的安全凭据：
+在 Linux 服务器（Debian / Ubuntu / CentOS 等）上执行一键部署脚本：
 
 ```bash
-cd deploy
-cp .env.example .env
-# 编辑 .env 修改 ADMIN_PASSWORD 与 CLIENT_TOKEN
-docker compose up -d
+chmod +x install.sh && ./install.sh
 ```
 
-启动完成后，在浏览器中打开 `http://<your-server-ip>:25580` 登录后台。
+脚本将自动检查 Docker 与 Compose 环境、创建所需分发目录、生成随机安全凭据并启动服务。
+
+*(亦可进入 `deploy/` 目录手工配置 `.env` 并运行 `docker compose up -d` 启动)*
+
+启动完成后，在浏览器中打开控制台地址（如 `http://<your-server-ip>:25580`）登录后台。
 
 ### 2. 发布模组更新
 
-1. 将需分发的客户端 `.jar` 文件复制到服务端配置的 `HOST_MODS_DIR` 目录中。
+1. 将需分发的客户端 `.jar` 文件复制到服务端配置的模组分发目录（默认 `dist/client_mods`）。
 2. 在后台填写更新说明，点击 **“扫描文件变动”** 查看增删改差异。
 3. 点击 **“确认发布此版本”**，系统原子落盘发布清单并生成最新版本号。
 
 ### 3. 一键生成客户端更新器
 
 在后台 Web 控制台的 **“生成客户端更新器”** 区域：
-1. 选择匹配您客户端的加载器版本模板（如 `NeoForge 26.1.2`）。
+1. 选择匹配您客户端的加载器版本模板（如 `Forge 1.20.1` 或 `NeoForge 26.1.2`）。
 2. 输入客户端访问服务端的 URL 地址。
 3. 点击 **“生成并下载更新器 (.jar)”**。
 4. 将生成的 JAR 文件直接放入客户端的 `mods` 文件夹分发给玩家即可。

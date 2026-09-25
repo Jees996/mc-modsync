@@ -1,4 +1,5 @@
 import datetime
+import hashlib
 import json
 import os
 import secrets
@@ -22,6 +23,19 @@ class PublisherError(Exception):
         self.code = code
         self.message = message
         self.data = data
+
+def hash_password(password: str) -> str:
+    salt = secrets.token_hex(16)
+    h = hashlib.sha256((salt + password).encode("utf-8")).hexdigest()
+    return f"{salt}:{h}"
+
+def verify_hashed_password(password: str, stored_hash: str) -> bool:
+    try:
+        salt, expected = stored_hash.split(":", 1)
+        actual = hashlib.sha256((salt + password).encode("utf-8")).hexdigest()
+        return secrets.compare_digest(actual, expected)
+    except Exception:
+        return False
 
 class Publisher:
     def __init__(self, mods_dir: Path, state_dir: Path):
@@ -79,6 +93,116 @@ class Publisher:
             state.update(updates)
             self._save_json_atomic(self.state_file, state)
 
+    def get_effective_pack_id(self) -> str:
+        return self.get_state().get("pack_id") or config.PACK_ID
+
+    def get_effective_client_endpoint(self) -> str:
+        return self.get_state().get("client_endpoint") or config.DEFAULT_CLIENT_ENDPOINT
+
+    def get_effective_client_token(self) -> str:
+        return self.get_state().get("client_token") or config.CLIENT_TOKEN
+
+    def get_effective_mods_subdir(self) -> str:
+        return self.get_state().get("mods_subdir") or config.MODS_SUBDIR
+
+    def get_effective_mods_dir(self) -> Path:
+        state = self.get_state()
+        if config.DIST_ROOT and config.DIST_ROOT.exists():
+            subdir = state.get("mods_subdir") or config.MODS_SUBDIR
+            subdir = subdir.strip("/\\")
+            target = (config.DIST_ROOT / subdir).resolve()
+            try:
+                if target.is_relative_to(config.DIST_ROOT):
+                    return target
+            except AttributeError:
+                if not os.path.relpath(target, config.DIST_ROOT).startswith(".."):
+                    return target
+        return self.mods_dir
+
+    def list_available_subdirs(self) -> List[str]:
+        if not config.DIST_ROOT or not config.DIST_ROOT.exists():
+            return []
+        subdirs = []
+        try:
+            for item in config.DIST_ROOT.iterdir():
+                if item.is_dir() and not item.name.startswith("."):
+                    subdirs.append(item.name)
+        except Exception:
+            pass
+        subdirs.sort()
+        return subdirs
+
+    def set_runtime_config(self, pack_id: Optional[str] = None, client_endpoint: Optional[str] = None, mods_subdir: Optional[str] = None) -> Dict[str, Any]:
+        updates = {}
+        if pack_id is not None:
+            clean_pack_id = pack_id.strip()
+            if not clean_pack_id:
+                raise PublisherError("INVALID_PACK_ID", "整合包标识不能为空")
+            updates["pack_id"] = clean_pack_id
+
+        if client_endpoint is not None:
+            clean_endpoint = client_endpoint.strip().rstrip("/")
+            if clean_endpoint and not clean_endpoint.startswith(("http://", "https://")):
+                raise PublisherError("INVALID_ENDPOINT", "客户端地址必须以 http:// 或 https:// 开头")
+            updates["client_endpoint"] = clean_endpoint
+
+        if mods_subdir is not None:
+            clean_subdir = mods_subdir.strip("/\\")
+            if config.DIST_ROOT and config.DIST_ROOT.exists():
+                target = (config.DIST_ROOT / clean_subdir).resolve()
+                try:
+                    if not target.is_relative_to(config.DIST_ROOT):
+                        raise PublisherError("INVALID_SUBDIR", "分发目录不能超出挂载根目录范围")
+                except AttributeError:
+                    if os.path.relpath(target, config.DIST_ROOT).startswith(".."):
+                        raise PublisherError("INVALID_SUBDIR", "分发目录不能超出挂载根目录范围")
+                if not target.exists() or not target.is_dir():
+                    raise PublisherError("SUBDIR_NOT_FOUND", f"分发目录不存在或不是目录: {clean_subdir}")
+            updates["mods_subdir"] = clean_subdir
+
+        self.update_state(updates)
+        return self.get_runtime_config_info()
+
+    def get_runtime_config_info(self) -> Dict[str, Any]:
+        effective_dir = self.get_effective_mods_dir()
+        mods_subdir = self.get_effective_mods_subdir()
+
+        host_dist_root = config.HOST_DIST_ROOT
+        if host_dist_root:
+            effective_host_path = f"{host_dist_root.rstrip('/')}/{mods_subdir}"
+        else:
+            effective_host_path = config.HOST_MODS_DIR
+
+        return {
+            "pack_id": self.get_effective_pack_id(),
+            "client_endpoint": self.get_effective_client_endpoint(),
+            "client_token": self.get_effective_client_token(),
+            "mods_subdir": mods_subdir,
+            "host_dist_root": host_dist_root,
+            "effective_host_path": effective_host_path,
+            "effective_container_path": str(effective_dir),
+            "available_subdirs": self.list_available_subdirs()
+        }
+
+    def rotate_client_token(self, new_token: Optional[str] = None) -> str:
+        token = new_token.strip() if new_token and new_token.strip() else secrets.token_urlsafe(24)
+        self.update_state({"client_token": token})
+        return token
+
+    def set_admin_password(self, new_password: str):
+        if not new_password or len(new_password) < 6:
+            raise PublisherError("WEAK_PASSWORD", "新管理员密码长度不能少于 6 个字符")
+        h = hash_password(new_password)
+        self.update_state({"admin_password_hash": h})
+
+    def verify_password(self, password: str) -> bool:
+        stored_hash = self.get_state().get("admin_password_hash")
+        if stored_hash:
+            return verify_hashed_password(password, stored_hash)
+        if config.ADMIN_PASSWORD:
+            return secrets.compare_digest(password.encode("utf-8"), config.ADMIN_PASSWORD.encode("utf-8"))
+        return False
+
     def set_download_enabled(self, enabled: bool) -> bool:
         self.update_state({"download_enabled": bool(enabled)})
         return bool(enabled)
@@ -90,7 +214,8 @@ class Publisher:
         """
         Scans current directory and returns diff against latest manifest.
         """
-        files, stats = scan_mods_directory(self.mods_dir)
+        effective_dir = self.get_effective_mods_dir()
+        files, stats = scan_mods_directory(effective_dir)
         manifest = self.get_manifest()
         prev_files = manifest.get("files", []) if manifest else None
 
@@ -114,8 +239,9 @@ class Publisher:
             raise PublisherError("CONCURRENT_PUBLISH", "已有发布操作正在进行中，请勿重复点击")
 
         try:
+            effective_dir = self.get_effective_mods_dir()
             # 1. Re-scan the directory
-            files, stats = scan_mods_directory(self.mods_dir)
+            files, stats = scan_mods_directory(effective_dir)
 
             # 2. Check if digest matches what the user previewed
             if stats["scan_digest"] != expected_scan_digest:
@@ -185,9 +311,10 @@ class Publisher:
                     "download_path": f"/api/v1/files/{file_id}"
                 })
 
+            pack_id = self.get_effective_pack_id()
             new_manifest = {
                 "schema_version": 1,
-                "pack_id": config.PACK_ID,
+                "pack_id": pack_id,
                 "release_id": release_id,
                 "published_at": now_iso,
                 "notes": full_notes,

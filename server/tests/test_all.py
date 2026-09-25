@@ -504,6 +504,99 @@ class PublisherEndToEndTest(unittest.TestCase):
             self.assertEqual(cfg["packId"], "test-pack")
             self.assertEqual(cfg["token"], "test_client_token_abc")
 
+    def test_18_generate_forge_updater_jar(self):
+        """18. Admin can generate Forge 1.20.1 updater JAR with correct metadata and config"""
+        cookie, csrf = self._admin_login()
+        endpoint = "http://192.168.1.100:25580"
+
+        status, headers, body = self._http_request(
+            "POST", "/api/admin/generate-updater",
+            data={"template_id": "forge-1.20.1", "client_endpoint": endpoint},
+            headers={"X-CSRF-Token": csrf}, cookie=cookie
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(headers.get("Content-Type"), "application/java-archive")
+        self.assertIn("modsync-forge-1.20.1-client.jar", headers.get("Content-Disposition", ""))
+
+        import io, zipfile
+        with zipfile.ZipFile(io.BytesIO(body), "r") as z:
+            cfg_bytes = z.read("modsync-server.json")
+            cfg = json.loads(cfg_bytes.decode("utf-8"))
+            self.assertEqual(cfg["endpoint"], endpoint)
+            self.assertEqual(cfg["packId"], "test-pack")
+            self.assertEqual(cfg["token"], "test_client_token_abc")
+
+            mods_toml = z.read("META-INF/mods.toml").decode("utf-8")
+            self.assertIn('modId="modsync"', mods_toml)
+            self.assertIn('modId="forge"', mods_toml)
+            self.assertIn('versionRange="[1.20.1, 1.20.2)"', mods_toml)
+
+    def test_19_runtime_config_api(self):
+        """19. Admin can get and update runtime configuration dynamically"""
+        cookie, csrf = self._admin_login()
+
+        # Get config
+        status, _, body = self._http_request("GET", "/api/admin/config", cookie=cookie)
+        self.assertEqual(status, 200)
+        data = json.loads(body.decode())
+        self.assertTrue(data["success"])
+        self.assertIn("pack_id", data["config"])
+
+        # Update pack_id and endpoint
+        status, _, body = self._http_request(
+            "POST", "/api/admin/config",
+            data={"pack_id": "new-test-pack", "client_endpoint": "http://192.168.1.50:25580"},
+            headers={"X-CSRF-Token": csrf}, cookie=cookie
+        )
+        self.assertEqual(status, 200)
+        data = json.loads(body.decode())
+        self.assertEqual(data["config"]["pack_id"], "new-test-pack")
+        self.assertEqual(data["config"]["client_endpoint"], "http://192.168.1.50:25580")
+
+        # Reset back to test-pack
+        self._http_request(
+            "POST", "/api/admin/config",
+            data={"pack_id": "test-pack", "client_endpoint": ""},
+            headers={"X-CSRF-Token": csrf}, cookie=cookie
+        )
+
+    def test_20_change_password_and_rotate_token(self):
+        """20. Admin can change password and rotate client token"""
+        cookie, csrf = self._admin_login()
+
+        # 1. Rotate token
+        status, _, body = self._http_request(
+            "POST", "/api/admin/rotate-token",
+            data={}, headers={"X-CSRF-Token": csrf}, cookie=cookie
+        )
+        self.assertEqual(status, 200)
+        data = json.loads(body.decode())
+        new_token = data["client_token"]
+        self.assertNotEqual(new_token, "test_client_token_abc")
+
+        # 2. Verify new token works for latest API
+        status, _, _ = self._http_request("GET", "/api/v1/latest", headers={"Authorization": f"Bearer {new_token}"})
+        self.assertIn(status, [200, 404, 503]) # authenticated
+
+        # 3. Change password
+        status, _, body = self._http_request(
+            "POST", "/api/admin/change-password",
+            data={"old_password": "test_admin_pass_123", "new_password": "new_secret_password_456"},
+            headers={"X-CSRF-Token": csrf}, cookie=cookie
+        )
+        self.assertEqual(status, 200)
+
+        # 4. Old password fails
+        status, _, _ = self._http_request("POST", "/api/admin/login", {"password": "test_admin_pass_123"})
+        self.assertEqual(status, 401)
+
+        # 5. New password succeeds
+        status, _, body = self._http_request("POST", "/api/admin/login", {"password": "new_secret_password_456"})
+        self.assertEqual(status, 200)
+
+        # Reset back for subsequent test cleanups
+        publisher.update_state({"admin_password_hash": None, "client_token": "test_client_token_abc"})
+
 if __name__ == "__main__":
     unittest.main()
 

@@ -6,21 +6,22 @@ services:
     image: modsync-server:latest
     container_name: modsync-server
     restart: unless-stopped
-    user: "1000:1001"
+    user: "${MODSYNC_UID:-1000}:${MODSYNC_GID:-1000}"
     ports:
       - "${PORT:-25580}:25580"
     volumes:
-      # 只读挂载宿主机 Mod 分发目录
-      - "${HOST_MODS_DIR:-./client_mods}:/data/mods:ro"
+      # 只读挂载宿主机 Mod 分发根目录
+      - "${HOST_DIST_ROOT:-./dist}:/data/dist_root:ro"
       # 可读写挂载状态持久化目录（存放已发布清单与会话状态）
       - "./state:/data/state:rw"
     environment:
       - PORT=25580
       - PACK_ID=${PACK_ID:-default-pack}
       - APP_NAME=${APP_NAME:-ModSync 更新发布器}
-      - HOST_MODS_DIR=${HOST_MODS_DIR:-./client_mods}
+      - HOST_DIST_ROOT=${HOST_DIST_ROOT:-./dist}
+      - MODS_SUBDIR=${MODS_SUBDIR:-client_mods}
       - CLIENT_ENDPOINT=${CLIENT_ENDPOINT:-}
-      - MODS_DIR=/data/mods
+      - DIST_ROOT=/data/dist_root
       - STATE_DIR=/data/state
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - CLIENT_TOKEN=${CLIENT_TOKEN}

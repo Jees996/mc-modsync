@@ -2,10 +2,6 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Create non-root user matching host UID/GID 1000:1001
-RUN groupadd -g 1001 mcgroup && \
-    useradd -u 1000 -g mcgroup -m appuser
-
 # Copy application source
 COPY app/ /app/app/
 
@@ -13,13 +9,12 @@ COPY app/ /app/app/
 ENV PYTHONUNBUFFERED=1 \
     PORT=25580 \
     MODS_DIR=/data/mods \
-    STATE_DIR=/data/state
+    STATE_DIR=/data/state \
+    DIST_ROOT=/data/dist_root
 
 # Prepare mount points
-RUN mkdir -p /data/mods /data/state && \
-    chown -R appuser:mcgroup /data/state /data/mods /app
-
-USER appuser
+RUN mkdir -p /data/mods /data/state /data/dist_root && \
+    chmod -R 777 /data/state /data/mods /data/dist_root
 
 EXPOSE 25580
 

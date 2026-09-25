@@ -13,7 +13,7 @@ from .config import config
 from .auth import session_store, verify_admin_password, verify_client_token
 from .publisher import Publisher, PublisherError
 from .rate_limiter import download_concurrency_limiter, ip_rate_limiter
-from .scanner import compute_file_sha256, ScannerError, DirectoryUnavailableError
+from .scanner import compute_file_sha256, scan_mods_directory, ScannerError, DirectoryUnavailableError
 from .generator import get_available_templates, generate_configured_jar, GeneratorError
 
 logging.basicConfig(
@@ -30,7 +30,6 @@ class PublisherHTTPHandler(BaseHTTPRequestHandler):
     server_version = "MCPublisher/1.0"
 
     def log_message(self, format, *args):
-        # Clean logging format
         logger.info("%s - - [%s] %s", self.client_address[0], self.log_date_time_string(), format % args)
 
     def send_json(self, status_code: int, data: Dict[str, Any], set_cookie: Optional[str] = None):
@@ -93,7 +92,7 @@ class PublisherHTTPHandler(BaseHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
 
-        # 1. Health check (no leak of credentials or paths)
+        # 1. Health check
         if path == "/healthz":
             self.send_json(HTTPStatus.OK, {"status": "ok"})
             return
@@ -117,6 +116,11 @@ class PublisherHTTPHandler(BaseHTTPRequestHandler):
         # 4.1 Admin API: templates
         if path == "/api/admin/templates":
             self.handle_admin_templates()
+            return
+
+        # 4.2 Admin API: config
+        if path == "/api/admin/config":
+            self.handle_admin_get_config()
             return
 
         # 5. Web UI: Login page
@@ -162,6 +166,18 @@ class PublisherHTTPHandler(BaseHTTPRequestHandler):
 
         if path == "/api/admin/generate-updater":
             self.handle_admin_generate_updater()
+            return
+
+        if path == "/api/admin/config":
+            self.handle_admin_update_config()
+            return
+
+        if path == "/api/admin/change-password":
+            self.handle_admin_change_password()
+            return
+
+        if path == "/api/admin/rotate-token":
+            self.handle_admin_rotate_token()
             return
 
         self.send_json(HTTPStatus.NOT_FOUND, {"error": "NOT_FOUND", "message": "接口不存在"})
@@ -241,19 +257,19 @@ class PublisherHTTPHandler(BaseHTTPRequestHandler):
             return
 
         filename = file_entry["filename"]
-        target_path = (config.MODS_DIR / filename).resolve()
+        effective_mods_dir = publisher.get_effective_mods_dir()
+        target_path = (effective_mods_dir / filename).resolve()
 
-        # Security check: must reside inside MODS_DIR and not be a symlink
+        # Security check: must reside inside effective_mods_dir and not be a symlink
         try:
-            if not target_path.is_relative_to(config.MODS_DIR) or target_path.is_symlink():
+            if not target_path.is_relative_to(effective_mods_dir) or target_path.is_symlink():
                 self.send_json(HTTPStatus.FORBIDDEN, {
                     "error": "FORBIDDEN",
                     "message": "非法的文件路径访问"
                 })
                 return
         except AttributeError:
-            # Python < 3.9 fallback if any
-            if os.path.relpath(target_path, config.MODS_DIR).startswith(".."):
+            if os.path.relpath(target_path, effective_mods_dir).startswith(".."):
                 self.send_json(HTTPStatus.FORBIDDEN, {"error": "FORBIDDEN", "message": "非法路径"})
                 return
 
@@ -356,13 +372,15 @@ class PublisherHTTPHandler(BaseHTTPRequestHandler):
             self.send_json(HTTPStatus.UNAUTHORIZED, {"error": "UNAUTHORIZED", "message": "未登录"})
             return
 
+        effective_mods_dir = publisher.get_effective_mods_dir()
         try:
-            files, dir_stats = scan_mods_directory(config.MODS_DIR)
+            files, dir_stats = scan_mods_directory(effective_mods_dir)
         except Exception:
             dir_stats = {"total_count": 0, "total_size": 0, "scan_digest": ""}
 
         manifest = publisher.get_manifest()
         state = publisher.get_state()
+        runtime_config = publisher.get_runtime_config_info()
 
         self.send_json(HTTPStatus.OK, {
             "success": True,
@@ -370,7 +388,8 @@ class PublisherHTTPHandler(BaseHTTPRequestHandler):
             "manifest": manifest,
             "download_enabled": publisher.is_download_enabled(),
             "last_user_notes": state.get("last_user_notes", ""),
-            "dir_stats": dir_stats
+            "dir_stats": dir_stats,
+            "runtime_config": runtime_config
         })
 
     def handle_admin_scan(self):
@@ -441,14 +460,13 @@ class PublisherHTTPHandler(BaseHTTPRequestHandler):
 
         templates = get_available_templates()
         host = self.headers.get("Host", "").split(":")[0] or "127.0.0.1"
-        configured_endpoint = getattr(config, "CLIENT_ENDPOINT", "") or getattr(config, "DEFAULT_CLIENT_ENDPOINT", "")
-        default_endpoint = configured_endpoint or f"http://{host}:{config.PORT}"
+        default_endpoint = publisher.get_effective_client_endpoint() or f"http://{host}:{config.PORT}"
 
         self.send_json(HTTPStatus.OK, {
             "success": True,
             "templates": templates,
             "default_endpoint": default_endpoint,
-            "pack_id": config.PACK_ID
+            "pack_id": publisher.get_effective_pack_id()
         })
 
     def handle_admin_generate_updater(self):
@@ -463,8 +481,8 @@ class PublisherHTTPHandler(BaseHTTPRequestHandler):
             jar_bytes, filename = generate_configured_jar(
                 template_id=template_id,
                 endpoint=client_endpoint,
-                pack_id=config.PACK_ID,
-                token=config.CLIENT_TOKEN
+                pack_id=publisher.get_effective_pack_id(),
+                token=publisher.get_effective_client_token()
             )
 
             encoded_fn = urllib.parse.quote(filename)
@@ -486,6 +504,75 @@ class PublisherHTTPHandler(BaseHTTPRequestHandler):
                 "message": f"生成客户端更新器失败: {e}"
             })
 
+    def handle_admin_get_config(self):
+        sess = self.get_current_session()
+        if not sess:
+            self.send_json(HTTPStatus.UNAUTHORIZED, {"error": "UNAUTHORIZED", "message": "未登录"})
+            return
+        self.send_json(HTTPStatus.OK, {
+            "success": True,
+            "config": publisher.get_runtime_config_info()
+        })
+
+    def handle_admin_update_config(self):
+        if not self._require_admin():
+            return
+        body = self.read_json_body()
+        pack_id = body.get("pack_id")
+        client_endpoint = body.get("client_endpoint")
+        mods_subdir = body.get("mods_subdir")
+
+        try:
+            new_info = publisher.set_runtime_config(
+                pack_id=pack_id,
+                client_endpoint=client_endpoint,
+                mods_subdir=mods_subdir
+            )
+            self.send_json(HTTPStatus.OK, {
+                "success": True,
+                "config": new_info,
+                "message": "配置更新成功"
+            })
+        except PublisherError as e:
+            self.send_json(HTTPStatus.BAD_REQUEST, {
+                "error": e.code,
+                "message": e.message
+            })
+        except Exception as e:
+            self.send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {
+                "error": "CONFIG_UPDATE_FAILED",
+                "message": f"更新配置失败: {e}"
+            })
+
+    def handle_admin_change_password(self):
+        if not self._require_admin():
+            return
+        body = self.read_json_body()
+        old_password = body.get("old_password", "")
+        new_password = body.get("new_password", "")
+
+        if not publisher.verify_password(old_password):
+            self.send_json(HTTPStatus.FORBIDDEN, {"error": "OLD_PASSWORD_INCORRECT", "message": "原密码不正确"})
+            return
+
+        try:
+            publisher.set_admin_password(new_password)
+            self.send_json(HTTPStatus.OK, {"success": True, "message": "管理员密码修改成功，后续登录请使用新密码"})
+        except PublisherError as e:
+            self.send_json(HTTPStatus.BAD_REQUEST, {"error": e.code, "message": e.message})
+
+    def handle_admin_rotate_token(self):
+        if not self._require_admin():
+            return
+        body = self.read_json_body()
+        custom_token = body.get("new_token")
+        new_token = publisher.rotate_client_token(custom_token)
+        self.send_json(HTTPStatus.OK, {
+            "success": True,
+            "client_token": new_token,
+            "message": "客户端下载 Token 轮换成功，请重新生成并分发客户端更新器"
+        })
+
     # --- HTML Rendering ---
 
     def render_login_page(self):
@@ -499,14 +586,15 @@ class PublisherHTTPHandler(BaseHTTPRequestHandler):
         path = TEMPLATES_DIR / "index.html"
         with open(path, "r", encoding="utf-8") as f:
             template = f.read()
+        cfg_info = publisher.get_runtime_config_info()
         rendered = template.replace("{{ APP_NAME }}", config.APP_NAME)
-        rendered = rendered.replace("{{ PACK_ID }}", config.PACK_ID)
-        rendered = rendered.replace("{{ HOST_MODS_DIR }}", config.HOST_MODS_DIR)
+        rendered = rendered.replace("{{ PACK_ID }}", cfg_info["pack_id"])
+        rendered = rendered.replace("{{ HOST_MODS_DIR }}", cfg_info["effective_host_path"])
         self.send_html(HTTPStatus.OK, rendered)
 
 def run():
-    # Preflight check on directories
-    config.MODS_DIR.mkdir(parents=True, exist_ok=True)
+    effective_dir = publisher.get_effective_mods_dir()
+    effective_dir.mkdir(parents=True, exist_ok=True)
     config.STATE_DIR.mkdir(parents=True, exist_ok=True)
 
     server_address = ("0.0.0.0", config.PORT)
@@ -514,7 +602,7 @@ def run():
     logger.info("==================================================")
     logger.info("  %s 启动就绪", config.APP_NAME)
     logger.info("  监听端口: %s", config.PORT)
-    logger.info("  Mod发布目录: %s", config.MODS_DIR)
+    logger.info("  Mod发布目录: %s", effective_dir)
     logger.info("  状态持久化目录: %s", config.STATE_DIR)
     logger.info("==================================================")
 
