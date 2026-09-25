@@ -334,38 +334,47 @@ public final class UpdaterCore {
     }
 
     private void download(Entry e, Path target, BooleanSupplier cancelled) throws Exception {
-        Path tmp = Files.createTempFile(state, "download-", ".part");
-        try {
-            var r = http.send(request(e.download_path()), HttpResponse.BodyHandlers.ofInputStream());
-            try (var in = r.body(); var out = Files.newOutputStream(tmp)) {
-                if (r.statusCode() != 200) throw httpError(r.statusCode());
-                byte[] buf = new byte[65536];
-                long size = 0;
-                int n;
-                while ((n = in.read(buf)) != -1) {
-                    if (cancelled.getAsBoolean()) throw new IOException("玩家已取消下载");
-                    size += n;
-                    if (size > e.size()) throw new IOException("下载文件大小超出发布清单");
-                    out.write(buf, 0, n);
-                }
-                if (size != e.size()) throw new IOException("下载文件大小不完整");
-            }
-
-            if (!sha256(tmp).equalsIgnoreCase(e.sha256())) {
-                throw new IOException("SHA-256 完整性校验失败");
-            }
-            if (cancelled.getAsBoolean()) {
-                throw new IOException("玩家已取消下载");
-            }
-
-            safeTarget(target.getFileName().toString());
+        int attempts = 0;
+        while (true) {
+            attempts++;
+            Path tmp = Files.createTempFile(state, "download-", ".part");
             try {
-                Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException ex) {
-                Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
+                var r = http.send(request(e.download_path()), HttpResponse.BodyHandlers.ofInputStream());
+                if (r.statusCode() == 429 && attempts < 4) {
+                    try { Thread.sleep(400L * attempts); } catch (InterruptedException ignored) {}
+                    continue;
+                }
+                if (r.statusCode() != 200) throw httpError(r.statusCode());
+                try (var in = r.body(); var out = Files.newOutputStream(tmp)) {
+                    byte[] buf = new byte[65536];
+                    long size = 0;
+                    int n;
+                    while ((n = in.read(buf)) != -1) {
+                        if (cancelled.getAsBoolean()) throw new IOException("玩家已取消下载");
+                        size += n;
+                        if (size > e.size()) throw new IOException("下载文件大小超出发布清单");
+                        out.write(buf, 0, n);
+                    }
+                    if (size != e.size()) throw new IOException("下载文件大小不完整");
+                }
+
+                if (!sha256(tmp).equalsIgnoreCase(e.sha256())) {
+                    throw new IOException("SHA-256 完整性校验失败");
+                }
+                if (cancelled.getAsBoolean()) {
+                    throw new IOException("玩家已取消下载");
+                }
+
+                safeTarget(target.getFileName().toString());
+                try {
+                    Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+                } catch (AtomicMoveNotSupportedException ex) {
+                    Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
+                }
+                break;
+            } finally {
+                Files.deleteIfExists(tmp);
             }
-        } finally {
-            Files.deleteIfExists(tmp);
         }
     }
 

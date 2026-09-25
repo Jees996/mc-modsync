@@ -22,7 +22,7 @@
     "java_version": "Java 17+",
     "status": "verified",
     "status_label": "已验证",
-    "sha256": "d1202ebf1f5a2e4556d475c016e14c27d5a0598d4f2838f657eec4addb1fe501",
+    "sha256": "aed8eb3d4b7585434d99455eea67e05c35a4a3b2f8d1e3f6ced12fc2505264e8",
     "notes": "Forge 1.20.1 客户端推荐版本，已在 Forge 47.3.33 环境通过测试，兼容 47.1.0+"
   }
 ]
