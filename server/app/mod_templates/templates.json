@@ -1,0 +1,15 @@
+[
+  {
+    "id": "neoforge-26.1.2",
+    "filename": "modsync-neoforge-26.1.2-0.2.0.jar",
+    "mod_version": "0.2.0",
+    "loader": "NeoForge",
+    "mc_range": "[26.1.2, 26.2)",
+    "loader_range": "[26.1.2.100, )",
+    "java_version": "Java 25+",
+    "status": "verified",
+    "status_label": "已验证",
+    "sha256": "40c2f21499d4382012845484ec6a386af4fefcc40a4c89770491fbba44dfb2fa",
+    "notes": "当前客户端推荐版本，已在 NeoForge 26.1.2.109 环境通过完整测试"
+  }
+]

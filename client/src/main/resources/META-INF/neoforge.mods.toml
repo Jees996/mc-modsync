@@ -1,0 +1,21 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="MIT"
+
+[[mods]]
+modId="modsync"
+version="0.2.0"
+displayName="ModSync · 客户端更新"
+description='''轻量 Minecraft 客户端模组同步更新器。'''
+
+[[dependencies.modsync]]
+modId="neoforge"
+type="required"
+versionRange="[26.1.2.100,)"
+side="CLIENT"
+
+[[dependencies.modsync]]
+modId="minecraft"
+type="required"
+versionRange="[26.1.2, 26.2)"
+side="CLIENT"

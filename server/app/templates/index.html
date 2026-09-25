@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ APP_NAME }}</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --success: #16a34a;
+      --success-bg: #f0fdf4;
+      --success-border: #bbf7d0;
+      --warning: #d97706;
+      --warning-bg: #fffbeb;
+      --warning-border: #fde68a;
+      --danger: #dc2626;
+      --danger-bg: #fef2f2;
+      --danger-border: #fecaca;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --radius: 8px;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 1.5rem 1rem;
+    }
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    .header-title h1 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .badge {
+      font-size: 0.75rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 9999px;
+      font-weight: 600;
+    }
+    .badge-primary { background: #dbeafe; color: #1e40af; }
+    .badge-success { background: #dcfce7; color: #166534; }
+    .badge-warning { background: #fef3c7; color: #92400e; }
+    .badge-danger { background: #fee2e2; color: #991b1b; }
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      margin-bottom: 1.25rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .card-title {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1rem;
+    }
+    .stat-box {
+      background: #f1f5f9;
+      padding: 0.85rem 1rem;
+      border-radius: 6px;
+    }
+    .stat-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 0.25rem;
+    }
+    .stat-value {
+      font-size: 1rem;
+      font-weight: 600;
+      word-break: break-all;
+    }
+    .code-pill {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      background: #e2e8f0;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.85rem;
+    }
+    .alert {
+      padding: 0.85rem 1rem;
+      border-radius: 6px;
+      margin-bottom: 1.25rem;
+      font-size: 0.875rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+    .alert-info { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+    .alert-warning { background: var(--warning-bg); color: var(--warning); border: 1px solid var(--warning-border); }
+    .alert-danger { background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger-border); }
+    .alert-success { background: var(--success-bg); color: var(--success); border: 1px solid var(--success-border); }
+
+    textarea, input[type="text"], select {
+      width: 100%;
+      padding: 0.6rem 0.85rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      outline: none;
+      background: white;
+    }
+    textarea {
+      min-height: 110px;
+      resize: vertical;
+    }
+    textarea:focus, input[type="text"]:focus, select:focus {
+      border-color: var(--primary);
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      padding: 0.6rem 1.2rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-outline { background: white; border-color: var(--border); color: var(--text); }
+    .btn-outline:hover { background: #f8fafc; }
+    .btn-danger { background: var(--danger); color: white; }
+    .btn-danger:hover { background: #b91c1c; }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .diff-category {
+      margin-bottom: 0.75rem;
+    }
+    .diff-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-bottom: 0.4rem;
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+    .diff-list {
+      list-style: none;
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.85rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    .diff-list li {
+      padding: 0.2rem 0;
+      word-break: break-all;
+    }
+    .text-added { color: #15803d; }
+    .text-modified { color: #b45309; }
+    .text-deleted { color: #b91c1c; }
+
+    pre.preview-box {
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 1rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 250px;
+      overflow-y: auto;
+    }
+
+    .switch-container {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+    }
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #cbd5e1;
+      transition: .3s;
+      border-radius: 24px;
+    }
+    .slider:before {
+      position: absolute; content: "";
+      height: 18px; width: 18px;
+      left: 3px; bottom: 3px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+    input:checked + .slider { background-color: var(--success); }
+    input:checked + .slider:before { transform: translateX(20px); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="header-title">
+        <h1>{{ APP_NAME }} <span class="badge badge-primary">{{ PACK_ID }}</span></h1>
+      </div>
+      <div class="header-actions">
+        <label class="switch-container" title="切换客户端更新与下载服务的开启状态">
+          <span style="font-size: 0.85rem; font-weight: 600;">下载服务:</span>
+          <div class="switch">
+            <input type="checkbox" id="download-toggle">
+            <span class="slider"></span>
+          </div>
+          <span id="download-status-text" class="badge">检查中...</span>
+        </label>
+        <button id="logout-btn" class="btn btn-outline" style="padding: 0.4rem 0.8rem;">退出</button>
+      </div>
+    </header>
+
+    <!-- Operational Guideline Alert -->
+    <div class="alert alert-info">
+      <span>💡</span>
+      <div>
+        <strong>维护操作提示：</strong>
+        维护 Mod 目录时建议先<strong>停用下载</strong>；请在<strong>完成文件复制后再点击扫描与发布</strong>，复制过程中切勿发布。本系统仅以只读方式发布顶层 .jar 文件，不会修改或删除宿主机上的源文件。
+      </div>
+    </div>
+
+    <!-- Section 1: Status Area -->
+    <div class="card">
+      <div class="card-title">
+        <span>当前发布器状态</span>
+        <button id="refresh-status-btn" class="btn btn-outline" style="font-size: 0.8rem; padding: 0.25rem 0.6rem;">刷新状态</button>
+      </div>
+      <div class="grid-2">
+        <div class="stat-box">
+          <div class="stat-label">当前已发布版本 (Release ID)</div>
+          <div id="stat-release-id" class="stat-value text-primary">-</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">发布时间 (Published At)</div>
+          <div id="stat-published-at" class="stat-value">-</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">宿主机投放目录</div>
+          <div class="stat-value code-pill" id="stat-host-dir">{{ HOST_MODS_DIR }}</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">支持文件规则</div>
+          <div class="stat-value" style="font-size: 0.85rem; color: var(--text-muted);">仅顶层 *.jar 模组文件（忽略子目录与临时文件）</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">目录文件数 / 总大小</div>
+          <div id="stat-dir-files" class="stat-value">-</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">客户端服务可用性</div>
+          <div id="stat-service-health" class="stat-value">-</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 2: Generate Client Updater -->
+    <div class="card">
+      <div class="card-title">
+        <span>生成客户端更新器 (Client Mod Generator)</span>
+      </div>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.85rem;">
+        选择客户端加载器与版本模板，一键生成内置私有配置的更新器 JAR。下载后直接放入客户端 <code>mods</code> 文件夹即可分发给玩家使用，无需玩家手动配置网络或输入密钥。
+      </p>
+
+      <div class="grid-2" style="margin-bottom: 1rem;">
+        <div>
+          <label style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 0.35rem;">选择适配模板：</label>
+          <select id="template-select"></select>
+        </div>
+        <div>
+          <label style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 0.35rem;">客户端访问更新服务地址 (URL)：</label>
+          <input type="text" id="generator-endpoint" placeholder="例如：http://192.168.1.100:25580">
+        </div>
+      </div>
+
+      <!-- Selected Template Details Display -->
+      <div id="template-details-box" style="background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem 1rem; margin-bottom: 1rem; font-size: 0.85rem; line-height: 1.7;">
+        <div><strong>加载器：</strong> <span id="tpl-loader">-</span> &nbsp;|&nbsp; <strong>Minecraft 兼容范围：</strong> <span id="tpl-mc-range" class="code-pill">-</span> &nbsp;|&nbsp; <strong>加载器范围：</strong> <span id="tpl-loader-range" class="code-pill">-</span></div>
+        <div><strong>运行时要求：</strong> <span id="tpl-java">-</span> &nbsp;|&nbsp; <strong>兼容验证状态：</strong> <span id="tpl-status-badge" class="badge">-</span></div>
+        <div style="color: var(--text-muted); margin-top: 0.25rem;"><span id="tpl-notes">-</span></div>
+      </div>
+
+      <div class="alert alert-info" style="margin-bottom: 1rem;">
+        <span>ℹ️</span>
+        <div>选择不同更新器适配模板，仅代表更新器自身能在该版本客户端正常运行加载，<strong>不代表会自动将发布目录中的玩法 Mod 转换为该版本</strong>。</div>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; align-items: center; gap: 1rem;">
+        <span id="generator-tip" style="font-size: 0.85rem; color: var(--text-muted);"></span>
+        <button id="generate-btn" class="btn btn-primary">
+          <span>📦</span> 生成并下载更新器 (.jar)
+        </button>
+      </div>
+    </div>
+
+    <!-- Section 3: Update Notes -->
+    <div class="card">
+      <div class="card-title">
+        <span>更新内容说明</span>
+      </div>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+        请在下方输入本次更新的手写说明（如玩法调整、修复问题、版本提醒等）。点击发布后，系统将自动把检测到的 Mod 文件变化清单追加在说明末尾。
+      </p>
+      <textarea id="update-notes" placeholder="例如：本次更新：修复地图加载异常，优化部分物品合成配方。"></textarea>
+    </div>
+
+    <!-- Section 4: File Changes Preview -->
+    <div class="card">
+      <div class="card-title">
+        <span>文件变化检测与预览</span>
+        <button id="scan-btn" class="btn btn-primary">
+          <span>🔍</span> 扫描文件变动
+        </button>
+      </div>
+
+      <div id="scan-loading" style="display: none; text-align: center; padding: 1.5rem; color: var(--text-muted);">
+        正在读取发布目录并校验 SHA-256 哈希值...
+      </div>
+
+      <div id="empty-warning" class="alert alert-warning" style="display: none;">
+        <span>⚠️</span>
+        <div>
+          <strong>目录为空警告：</strong>当前发布目录中未检测到任何有效的 .jar 模组文件！
+          <div style="margin-top: 0.5rem;">
+            <label style="display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 600; cursor: pointer;">
+              <input type="checkbox" id="allow-empty-check"> 我明确已知晓当前目录为空，确认发布合法空模组包（将清除客户端现有模组）
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div id="diff-results" style="display: none;">
+        <div id="diff-summary-alert" class="alert" style="margin-bottom: 1rem;"></div>
+
+        <div class="diff-category" id="diff-added-box" style="display: none;">
+          <div class="diff-title text-added">+ 新增文件 (<span id="count-added">0</span>)</div>
+          <ul class="diff-list text-added" id="list-added"></ul>
+        </div>
+
+        <div class="diff-category" id="diff-modified-box" style="display: none;">
+          <div class="diff-title text-modified">~ 内容更新文件 (<span id="count-modified">0</span>) <span style="font-weight: normal; font-size: 0.75rem; color: var(--text-muted);">（同名文件 SHA-256 改变）</span></div>
+          <ul class="diff-list text-modified" id="list-modified"></ul>
+        </div>
+
+        <div class="diff-category" id="diff-deleted-box" style="display: none;">
+          <div class="diff-title text-deleted">- 移除文件 (<span id="count-deleted">0</span>)</div>
+          <ul class="diff-list text-deleted" id="list-deleted"></ul>
+        </div>
+
+        <div style="margin-top: 1rem;">
+          <label style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 0.4rem;">最终更新公告效果预览：</label>
+          <pre id="preview-final-notes" class="preview-box">（点击“扫描文件变动”后生成预览）</pre>
+        </div>
+
+        <div style="margin-top: 1.5rem; display: flex; justify-content: flex-end; align-items: center; gap: 1rem; border-top: 1px solid var(--border); padding-top: 1rem;">
+          <span id="publish-tip" style="font-size: 0.85rem; color: var(--text-muted);"></span>
+          <button id="publish-btn" class="btn btn-primary" style="padding: 0.75rem 1.75rem; font-size: 1rem;">
+            <span>🚀</span> 确认发布此版本
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 5: Current Published Details -->
+    <div class="card" id="published-details-card" style="display: none;">
+      <div class="card-title">
+        <span>最近已发布版本信息</span>
+      </div>
+      <div style="margin-bottom: 1rem;">
+        <label style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 0.3rem;">已发布完整公告：</label>
+        <pre id="published-notes-box" class="preview-box" style="max-height: 180px;"></pre>
+      </div>
+      <div>
+        <label style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 0.3rem;">已发布文件清单 (<span id="published-files-count">0</span> 个文件)：</label>
+        <ul id="published-files-list" class="diff-list" style="max-height: 200px; overflow-y: auto;"></ul>
+      </div>
+    </div>
+
+    <!-- Section 6: API Reference for Client Mod -->
+    <div class="card">
+      <div class="card-title">
+        <span>客户端接口接入参考 (Client Mod API)</span>
+      </div>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+        Minecraft 客户端更新 Mod 调用以下标准化接口获取公告和下载文件：
+      </p>
+      <div style="font-size: 0.85rem; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; background: #f1f5f9; padding: 0.75rem; border-radius: 6px; line-height: 1.8;">
+        <div><strong>1. 获取最新发布清单：</strong> <code>GET /api/v1/latest</code></div>
+        <div>&nbsp;&nbsp;&nbsp;Header: <code>Authorization: Bearer &lt;CLIENT_TOKEN&gt;</code></div>
+        <div><strong>2. 下载指定模组文件：</strong> <code>GET /api/v1/files/{file_id}</code></div>
+        <div>&nbsp;&nbsp;&nbsp;Header: <code>Authorization: Bearer &lt;CLIENT_TOKEN&gt;</code></div>
+        <div><strong>3. 服务健康检查：</strong> <code>GET /healthz</code></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // State
+    let csrfToken = '';
+    let currentScanDigest = '';
+    let isScanning = false;
+    let isPublishing = false;
+    let isGenerating = false;
+    let availableTemplates = [];
+
+    // Elements
+    const downloadToggle = document.getElementById('download-toggle');
+    const downloadStatusText = document.getElementById('download-status-text');
+    const logoutBtn = document.getElementById('logout-btn');
+    const refreshStatusBtn = document.getElementById('refresh-status-btn');
+
+    const statReleaseId = document.getElementById('stat-release-id');
+    const statPublishedAt = document.getElementById('stat-published-at');
+    const statDirFiles = document.getElementById('stat-dir-files');
+    const statServiceHealth = document.getElementById('stat-service-health');
+
+    // Generator elements
+    const templateSelect = document.getElementById('template-select');
+    const generatorEndpoint = document.getElementById('generator-endpoint');
+    const tplLoader = document.getElementById('tpl-loader');
+    const tplMcRange = document.getElementById('tpl-mc-range');
+    const tplLoaderRange = document.getElementById('tpl-loader-range');
+    const tplJava = document.getElementById('tpl-java');
+    const tplStatusBadge = document.getElementById('tpl-status-badge');
+    const tplNotes = document.getElementById('tpl-notes');
+    const generateBtn = document.getElementById('generate-btn');
+    const generatorTip = document.getElementById('generator-tip');
+
+    const updateNotesArea = document.getElementById('update-notes');
+    const scanBtn = document.getElementById('scan-btn');
+    const scanLoading = document.getElementById('scan-loading');
+    const emptyWarning = document.getElementById('empty-warning');
+    const allowEmptyCheck = document.getElementById('allow-empty-check');
+    const diffResults = document.getElementById('diff-results');
+    const diffSummaryAlert = document.getElementById('diff-summary-alert');
+
+    const diffAddedBox = document.getElementById('diff-added-box');
+    const countAdded = document.getElementById('count-added');
+    const listAdded = document.getElementById('list-added');
+
+    const diffModifiedBox = document.getElementById('diff-modified-box');
+    const countModified = document.getElementById('count-modified');
+    const listModified = document.getElementById('list-modified');
+
+    const diffDeletedBox = document.getElementById('diff-deleted-box');
+    const countDeleted = document.getElementById('count-deleted');
+    const listDeleted = document.getElementById('list-deleted');
+
+    const previewFinalNotes = document.getElementById('preview-final-notes');
+    const publishBtn = document.getElementById('publish-btn');
+    const publishTip = document.getElementById('publish-tip');
+
+    const publishedDetailsCard = document.getElementById('published-details-card');
+    const publishedNotesBox = document.getElementById('published-notes-box');
+    const publishedFilesCount = document.getElementById('published-files-count');
+    const publishedFilesList = document.getElementById('published-files-list');
+
+    function formatBytes(bytes) {
+      if (bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i];
+    }
+
+    function formatTime(isoString) {
+      if (!isoString) return '尚未发布';
+      try {
+        const d = new Date(isoString);
+        return d.toLocaleString('zh-CN', { hour12: false });
+      } catch (e) {
+        return isoString;
+      }
+    }
+
+    async function loadStatus() {
+      try {
+        const res = await fetch('/api/admin/status');
+        if (res.status === 401) {
+          window.location.href = '/login';
+          return;
+        }
+        const data = await res.json();
+        if (!data.success) return;
+
+        csrfToken = data.csrf_token;
+
+        // Render download toggle
+        downloadToggle.checked = data.download_enabled;
+        if (data.download_enabled) {
+          downloadStatusText.textContent = '运行中';
+          downloadStatusText.className = 'badge badge-success';
+          statServiceHealth.textContent = '下载服务正常运行';
+          statServiceHealth.style.color = '#16a34a';
+        } else {
+          downloadStatusText.textContent = '已停用';
+          downloadStatusText.className = 'badge badge-danger';
+          statServiceHealth.textContent = '下载服务已停用维护';
+          statServiceHealth.style.color = '#dc2626';
+        }
+
+        // Render stats
+        if (data.manifest) {
+          statReleaseId.textContent = data.manifest.release_id;
+          statPublishedAt.textContent = formatTime(data.manifest.published_at);
+          publishedDetailsCard.style.display = 'block';
+          publishedNotesBox.textContent = data.manifest.notes;
+          publishedFilesCount.textContent = data.manifest.files.length;
+          publishedFilesList.innerHTML = data.manifest.files.map(f =>
+            `<li><span>${f.filename}</span> <span style="color:var(--text-muted); font-size:0.75rem;">(${formatBytes(f.size)} · ${f.sha256.substring(0, 10)}...)</span></li>`
+          ).join('');
+        } else {
+          statReleaseId.textContent = '尚未发布任何版本';
+          statPublishedAt.textContent = '-';
+          publishedDetailsCard.style.display = 'none';
+        }
+
+        statDirFiles.textContent = `${data.dir_stats.total_count} 个模组文件 (${formatBytes(data.dir_stats.total_size)})`;
+
+        if (!updateNotesArea.value && data.last_user_notes) {
+          updateNotesArea.value = data.last_user_notes;
+        }
+
+        // Load templates
+        loadTemplates();
+      } catch (err) {
+        console.error('Failed to load status:', err);
+      }
+    }
+
+    async function loadTemplates() {
+      try {
+        const res = await fetch('/api/admin/templates');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.success) return;
+
+        availableTemplates = data.templates || [];
+        if (!generatorEndpoint.value && data.default_endpoint) {
+          generatorEndpoint.value = data.default_endpoint;
+        }
+
+        templateSelect.innerHTML = availableTemplates.map(t => {
+          const statusTag = t.status === 'verified' ? '【已验证】' : '【实验兼容】';
+          return `<option value="${t.id}">${statusTag} ${t.loader} ${t.id} (${t.mc_range})</option>`;
+        }).join('');
+
+        if (availableTemplates.length === 0) {
+          templateSelect.innerHTML = '<option value="">暂无可用模板</option>';
+          generateBtn.disabled = true;
+        } else {
+          generateBtn.disabled = false;
+          updateSelectedTemplateDetails();
+        }
+      } catch (err) {
+        console.error('Failed to load templates:', err);
+      }
+    }
+
+    function updateSelectedTemplateDetails() {
+      const selectedId = templateSelect.value;
+      const t = availableTemplates.find(x => x.id === selectedId);
+      if (!t) return;
+
+      tplLoader.textContent = t.loader;
+      tplMcRange.textContent = t.mc_range;
+      tplLoaderRange.textContent = t.loader_range;
+      tplJava.textContent = t.java_version || 'Java 21+';
+      tplNotes.textContent = t.notes || '';
+
+      if (t.status === 'verified') {
+        tplStatusBadge.textContent = '已验证完整支持';
+        tplStatusBadge.className = 'badge badge-success';
+      } else if (t.status === 'experimental') {
+        tplStatusBadge.textContent = '实验性兼容版本';
+        tplStatusBadge.className = 'badge badge-warning';
+      } else {
+        tplStatusBadge.textContent = '暂不支持';
+        tplStatusBadge.className = 'badge badge-danger';
+      }
+    }
+
+    templateSelect.addEventListener('change', updateSelectedTemplateDetails);
+
+    // Generate Updater JAR
+    generateBtn.addEventListener('click', async () => {
+      if (isGenerating) return;
+      const selectedId = templateSelect.value;
+      const endpoint = generatorEndpoint.value.trim();
+
+      if (!selectedId) {
+        alert('请选择需要生成的更新器模板');
+        return;
+      }
+      if (!endpoint || (!endpoint.startsWith('http://') && !endpoint.startsWith('https://'))) {
+        alert('请输入有效的客户端更新服务地址（必须以 http:// 或 https:// 开头）');
+        return;
+      }
+
+      isGenerating = true;
+      generateBtn.disabled = true;
+      generateBtn.innerHTML = '<span>⏳</span> 正在生成 JAR...';
+      generatorTip.textContent = '正在打包并注入私有配置...';
+
+      try {
+        const res = await fetch('/api/admin/generate-updater', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': csrfToken
+          },
+          body: JSON.stringify({
+            template_id: selectedId,
+            client_endpoint: endpoint
+          })
+        });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          alert('生成更新器失败: ' + (errData.message || '未知错误'));
+          return;
+        }
+
+        // Extract filename from Content-Disposition header
+        let filename = 'modsync-client.jar';
+        const disp = res.headers.get('Content-Disposition');
+        if (disp && disp.includes('filename=')) {
+          const match = disp.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)["']?/i);
+          if (match && match[1]) {
+            filename = decodeURIComponent(match[1]);
+          }
+        }
+
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+
+        generatorTip.textContent = `🎉 已成功生成并开始下载: ${filename}`;
+      } catch (err) {
+        alert('生成更新器请求异常: ' + err.message);
+      } finally {
+        isGenerating = false;
+        generateBtn.disabled = false;
+        generateBtn.innerHTML = '<span>📦</span> 生成并下载更新器 (.jar)';
+      }
+    });
+
+    // Toggle download
+    downloadToggle.addEventListener('change', async () => {
+      const targetState = downloadToggle.checked;
+      try {
+        const res = await fetch('/api/admin/toggle-download', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': csrfToken
+          },
+          body: JSON.stringify({ enabled: targetState })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          loadStatus();
+        } else {
+          alert(data.message || '操作失败');
+          downloadToggle.checked = !targetState;
+        }
+      } catch (err) {
+        alert('网络异常');
+        downloadToggle.checked = !targetState;
+      }
+    });
+
+    // Scan
+    async function performScan() {
+      if (isScanning) return;
+      isScanning = true;
+      scanBtn.disabled = true;
+      scanLoading.style.display = 'block';
+      diffResults.style.display = 'none';
+      emptyWarning.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/admin/scan', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': csrfToken
+          }
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          alert(data.message || '扫描失败');
+          return;
+        }
+
+        currentScanDigest = data.stats.scan_digest;
+
+        // Render empty warning if needed
+        if (data.is_empty) {
+          emptyWarning.style.display = 'block';
+          allowEmptyCheck.checked = false;
+        } else {
+          emptyWarning.style.display = 'none';
+        }
+
+        // Render diffs
+        const changes = data.changes;
+        const totalChanges = changes.added.length + changes.modified.length + changes.deleted.length;
+
+        if (totalChanges === 0) {
+          diffSummaryAlert.className = 'alert alert-info';
+          diffSummaryAlert.innerHTML = '<span>ℹ️</span> 相对上次已发布版本，当前发布目录中的文件<strong>没有变化</strong>。若修改了上方说明，可以直接发布新说明。';
+        } else {
+          diffSummaryAlert.className = 'alert alert-success';
+          diffSummaryAlert.innerHTML = `<span>✨</span> 检测到 <strong>${totalChanges}</strong> 处文件变动（新增 ${changes.added.length}，更新 ${changes.modified.length}，删除 ${changes.deleted.length}）。`;
+        }
+
+        // Added
+        if (changes.added.length > 0) {
+          diffAddedBox.style.display = 'block';
+          countAdded.textContent = changes.added.length;
+          listAdded.innerHTML = changes.added.map(f => `<li>+ ${f}</li>`).join('');
+        } else {
+          diffAddedBox.style.display = 'none';
+        }
+
+        // Modified
+        if (changes.modified.length > 0) {
+          diffModifiedBox.style.display = 'block';
+          countModified.textContent = changes.modified.length;
+          listModified.innerHTML = changes.modified.map(f => `<li>~ ${f}</li>`).join('');
+        } else {
+          diffModifiedBox.style.display = 'none';
+        }
+
+        // Deleted
+        if (changes.deleted.length > 0) {
+          diffDeletedBox.style.display = 'block';
+          countDeleted.textContent = changes.deleted.length;
+          listDeleted.innerHTML = changes.deleted.map(f => `<li>- ${f}</li>`).join('');
+        } else {
+          diffDeletedBox.style.display = 'none';
+        }
+
+        updatePreviewNotes(changes);
+        diffResults.style.display = 'block';
+      } catch (err) {
+        alert('扫描请求异常: ' + err.message);
+      } finally {
+        isScanning = false;
+        scanBtn.disabled = false;
+        scanLoading.style.display = 'none';
+      }
+    }
+
+    scanBtn.addEventListener('click', performScan);
+
+    function updatePreviewNotes(changes) {
+      let userText = updateNotesArea.value.trim();
+      const marker = "Mod文件变化：";
+      if (userText.includes(marker)) {
+        userText = userText.substring(0, userText.indexOf(marker)).trim();
+      }
+
+      let diffText = "Mod文件变化：";
+      if (!changes || (changes.added.length === 0 && changes.modified.length === 0 && changes.deleted.length === 0)) {
+        diffText += "\n本次无Mod文件变更";
+      } else {
+        if (changes.added.length > 0) {
+          diffText += `\n新增（${changes.added.length}）：\n` + changes.added.map(f => `+ ${f}`).join('\n');
+        }
+        if (changes.modified.length > 0) {
+          diffText += `\n\n更新（${changes.modified.length}）：\n` + changes.modified.map(f => `~ ${f}`).join('\n');
+        }
+        if (changes.deleted.length > 0) {
+          diffText += `\n\n删除（${changes.deleted.length}）：\n` + changes.deleted.map(f => `- ${f}`).join('\n');
+        }
+      }
+
+      const fullText = userText ? `${userText}\n\n${diffText}` : diffText;
+      previewFinalNotes.textContent = fullText;
+    }
+
+    updateNotesArea.addEventListener('input', () => {
+      if (diffResults.style.display !== 'none') {
+        const added = Array.from(listAdded.children).map(li => li.textContent.replace(/^\+\s*/, ''));
+        const modified = Array.from(listModified.children).map(li => li.textContent.replace(/^~\s*/, ''));
+        const deleted = Array.from(listDeleted.children).map(li => li.textContent.replace(/^-\s*/, ''));
+        updatePreviewNotes({ added, modified, deleted });
+      }
+    });
+
+    // Publish
+    publishBtn.addEventListener('click', async () => {
+      if (isPublishing) return;
+
+      if (!currentScanDigest) {
+        alert('请先点击“扫描文件变动”核对变动后再发布');
+        return;
+      }
+
+      const allowEmpty = allowEmptyCheck.checked;
+      if (emptyWarning.style.display !== 'none' && !allowEmpty) {
+        alert('发布目录为空！若您确需清空客户端全部模组，请在上方勾选“确认发布空模组包”复选框');
+        return;
+      }
+
+      isPublishing = true;
+      publishBtn.disabled = true;
+      publishBtn.innerHTML = '<span>⏳</span> 正在校验并发布...';
+
+      try {
+        const res = await fetch('/api/admin/publish', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': csrfToken
+          },
+          body: JSON.stringify({
+            notes: updateNotesArea.value,
+            scan_digest: currentScanDigest,
+            allow_empty: allowEmpty
+          })
+        });
+
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+          alert('🎉 版本发布成功！版本号：' + data.manifest.release_id);
+          currentScanDigest = '';
+          diffResults.style.display = 'none';
+          await loadStatus();
+        } else if (data.code === 'SCAN_OUTDATED') {
+          alert('⚠️ 注意：' + data.message);
+          performScan();
+        } else {
+          alert('发布未完成：' + (data.message || '未知错误'));
+        }
+      } catch (err) {
+        alert('发布请求异常: ' + err.message);
+      } finally {
+        isPublishing = false;
+        publishBtn.disabled = false;
+        publishBtn.innerHTML = '<span>🚀</span> 确认发布此版本';
+      }
+    });
+
+    // Logout
+    logoutBtn.addEventListener('click', async () => {
+      try {
+        await fetch('/api/admin/logout', {
+          method: 'POST',
+          headers: { 'X-CSRF-Token': csrfToken }
+        });
+      } finally {
+        window.location.href = '/login';
+      }
+    });
+
+    refreshStatusBtn.addEventListener('click', () => {
+      loadStatus();
+    });
+
+    // Initial load
+    loadStatus();
+  </script>
+</body>
+</html>

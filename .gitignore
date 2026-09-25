@@ -1,0 +1,40 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.tmp
+*.part
+*.log
+
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
+*.local.json
+local/
+
+# State & local runtime data
+state/
+client_mods/
+
+# Gradle & Java build artifacts
+.gradle/
+build/
+bin/
+out/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/**/build/
+
+# IDE & Editor files
+.idea/
+*.iws
+*.iml
+*.ipr
+.vscode/
+.settings/
+.project
+.classpath
+
+# OS generated files
+.DS_Store
+Thumbs.db

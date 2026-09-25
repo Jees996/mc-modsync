@@ -1,0 +1,57 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.147'
+}
+
+version = mod_version
+group = 'com.modsync.updater'
+base { archivesName = 'modsync-neoforge-26.1.2' }
+java.toolchain.languageVersion = JavaLanguageVersion.of(25)
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation 'com.google.code.gson:gson:2.11.0'
+}
+
+neoForge {
+    version = project.neo_version
+    runs { client { client() } }
+    mods { modsync { sourceSet sourceSets.main } }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+tasks.named('processResources') {
+    def tmpConfig = layout.buildDirectory.file('tmp/modsync-server.json')
+    doFirst {
+        def isTemplate = project.hasProperty('template')
+        def serverJson = file('local/server.json')
+        def targetFile = tmpConfig.get().asFile
+        targetFile.parentFile.mkdirs()
+        if (!isTemplate && serverJson.exists()) {
+            targetFile.text = serverJson.text
+        } else {
+            targetFile.text = '{\n  "endpoint": "",\n  "packId": "",\n  "token": ""\n}\n'
+        }
+    }
+    from(tmpConfig) {
+        rename { 'modsync-server.json' }
+    }
+}
+
+tasks.register('coreTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.modsync.updater.UpdaterCoreTest'
+}
+
+tasks.register('lanTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.modsync.updater.LanTest'
+}
