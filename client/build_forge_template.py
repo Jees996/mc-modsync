@@ -272,13 +272,13 @@ public final class UpdaterScreen extends Screen {
         super.m_88315_(g, mouseX, mouseY, partialTick);
         g.m_280509_(10, 38, this.f_96543_ - 10, this.f_96544_ - 82, 0x88000000);
         g.m_280653_(this.f_96547_, this.f_96539_, this.f_96543_ / 2, 10, 0xFFFFFF);
-        g.m_280137_(this.f_96547_, this.f_96547_.m_92834_(status, Math.max(100, this.f_96543_ - 28)), 14, 25, 0xFFFFFF);
+        g.m_280488_(this.f_96547_, this.f_96547_.m_92834_(status, Math.max(100, this.f_96543_ - 32)), 16, 25, 0xFFFFFF);
         int from = page * perPage(), end = Math.min(lines.size(), from + perPage());
         for (int i = from; i < end; i++) {
-            g.m_280364_(this.f_96547_, lines.get(i), 16, 44 + (i - from) * 12, 0xFFFFFF);
+            g.m_280648_(this.f_96547_, lines.get(i), 16, 44 + (i - from) * 12, 0xFFFFFF);
         }
         String pageStr = (page + 1) + " / " + (maxPage() + 1);
-        g.m_280137_(this.f_96547_, pageStr, this.f_96543_ - 14 - this.f_96547_.m_92895_(pageStr), this.f_96544_ - 95, 0x888888);
+        g.m_280488_(this.f_96547_, pageStr, this.f_96543_ - 16 - this.f_96547_.m_92895_(pageStr), this.f_96544_ - 95, 0x888888);
     }
 }
 """

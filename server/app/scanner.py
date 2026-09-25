@@ -80,6 +80,10 @@ def scan_mods_directory(mods_dir: Path) -> Tuple[List[Dict[str, Any]], Dict[str,
             if not lower_name.endswith(".jar"):
                 continue
 
+            # Skip updater itself (never distribute the updater in the mods manifest)
+            if lower_name.startswith("modsync") or lower_name.startswith("lee-updater"):
+                continue
+
             file_hash, file_size = compute_file_sha256(entry)
 
             files.append({
