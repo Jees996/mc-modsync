@@ -96,3 +96,43 @@ failed to do request: Head "https://registry-1.docker.io/v2/library/python/manif
 ### 4. 解决建议
 - 在 `/etc/docker/daemon.json` 中配置国内可用的加速镜像源（如 `registry-mirrors`），或配置代理；
 - 亦可通过已有机器导出缓存镜像：`docker save python:3.12-slim | ssh <target> "docker load"` 直接离线导入。
+
+---
+
+## 问题五：Forge 1.20.1 模组加载器报 `Missing required field mandatory in dependency` 并忽略模组
+
+### 1. 发生阶段
+客户端放入生成的 `modsync-forge-1.20.1-client.jar` 后启动 Minecraft 1.20.1，主菜单未显示“整合包更新”按钮。
+
+### 2. 报错现象
+在客户端 `logs/debug.log` 中记录：
+```text
+net.minecraftforge.fml.loading.moddiscovery.InvalidModFileException: Missing required field mandatory in dependency (modsync-forge-1.20.1-client.jar)
+[Render thread/WARN] [net.minecraftforge.client.loading.ClientModLoader/LOADING]: 文件modsync-forge-1.20.1-client.jar不是有效的Mod文件
+```
+
+### 3. 原因排查
+- NeoForge 1.20.4+ / 26.x 模组元数据采用了 `type = "required"` 语法。
+- 而经典 Forge 1.20.1 的 FML 加载器在解析 `[[dependencies.<modId>]]` 时，强制要求 `mandatory = true`（布尔值），且必须包含 `ordering` 与 `side`。若缺少 `mandatory` 字段，Forge 会直接抛出 `InvalidModFileException` 并将整个 JAR 标记为非有效模组跳过加载。
+
+### 4. 项目修正
+在 Forge 1.20.1 构建模版中修正 `META-INF/mods.toml` 依赖块定义：
+```toml
+[[dependencies.modsync]]
+modId = "forge"
+mandatory = true
+versionRange = "[47.1.0,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.modsync]]
+modId = "minecraft"
+mandatory = true
+versionRange = "[1.20.1, 1.20.2)"
+ordering = "NONE"
+side = "BOTH"
+```
+同时添加 `displayTest = "IGNORE_ALL_VERSION"` 声明为纯客户端可选更新模组，免去服务端安装要求。
+
+### 5. 复测结果
+更新后的 JAR 放入香草纪元客户端 `mods` 目录，FML 顺利将其识别为合法有效模组。

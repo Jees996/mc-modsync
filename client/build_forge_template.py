@@ -52,14 +52,11 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.network.chat.Component;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.client.event.ScreenEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.common.Mod;
 
 @Mod("modsync")
-@OnlyIn(Dist.CLIENT)
 public final class UpdaterMod {
     public UpdaterMod() {
         MinecraftForge.EVENT_BUS.addListener(UpdaterMod::onTitleScreenInit);
@@ -295,18 +292,21 @@ modId="modsync"
 version="0.2.0"
 displayName="ModSync · 客户端更新"
 description='''轻量 Minecraft 客户端模组同步更新器。'''
+displayTest="IGNORE_ALL_VERSION"
 
 [[dependencies.modsync]]
 modId="forge"
-type="required"
+mandatory=true
 versionRange="[47.1.0,)"
-side="CLIENT"
+ordering="NONE"
+side="BOTH"
 
 [[dependencies.modsync]]
 modId="minecraft"
-type="required"
+mandatory=true
 versionRange="[1.20.1, 1.20.2)"
-side="CLIENT"
+ordering="NONE"
+side="BOTH"
 """
 
 zh_cn_json = """{
