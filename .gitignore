@@ -5,6 +5,7 @@ __pycache__/
 *.tmp
 *.part
 *.log
+.cache/
 
 # Environment variables & secrets
 .env

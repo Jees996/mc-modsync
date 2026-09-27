@@ -597,6 +597,63 @@ class PublisherEndToEndTest(unittest.TestCase):
         # Reset back for subsequent test cleanups
         publisher.update_state({"admin_password_hash": None, "client_token": "test_client_token_abc"})
 
+    def test_21_directory_selection_and_path_traversal_boundaries(self):
+        """21. Test directory selection within allowed root and rejection of escape attempts"""
+        cookie, csrf = self._admin_login()
+
+        # Set up a test DIST_ROOT
+        test_dist = Path(test_tmp) / "dist_root"
+        sub_a = test_dist / "pack_a_mods"
+        sub_b = test_dist / "pack_b_mods"
+        sub_a.mkdir(parents=True, exist_ok=True)
+        sub_b.mkdir(parents=True, exist_ok=True)
+
+        config.DIST_ROOT = test_dist
+        config.HOST_DIST_ROOT = "/opt/minecraft/dist"
+
+        # 1. Available subdirs listed
+        status, _, body = self._http_request("GET", "/api/admin/config", cookie=cookie)
+        self.assertEqual(status, 200)
+        cfg = json.loads(body.decode())["config"]
+        self.assertIn("pack_a_mods", cfg["available_subdirs"])
+        self.assertIn("pack_b_mods", cfg["available_subdirs"])
+
+        # 2. Select valid subdir
+        status, _, body = self._http_request(
+            "POST", "/api/admin/config",
+            data={"mods_subdir": "pack_a_mods"},
+            headers={"X-CSRF-Token": csrf}, cookie=cookie
+        )
+        self.assertEqual(status, 200)
+        cfg = json.loads(body.decode())["config"]
+        self.assertEqual(cfg["mods_subdir"], "pack_a_mods")
+        self.assertEqual(cfg["effective_host_path"], "/opt/minecraft/dist/pack_a_mods")
+
+        # 3. Path traversal escape attempt rejected
+        status, _, body = self._http_request(
+            "POST", "/api/admin/config",
+            data={"mods_subdir": "../../etc"},
+            headers={"X-CSRF-Token": csrf}, cookie=cookie
+        )
+        self.assertEqual(status, 400)
+        data = json.loads(body.decode())
+        self.assertEqual(data.get("error"), "INVALID_SUBDIR")
+
+        # 4. Non-existent subdir rejected
+        status, _, body = self._http_request(
+            "POST", "/api/admin/config",
+            data={"mods_subdir": "non_existent_subdir_123"},
+            headers={"X-CSRF-Token": csrf}, cookie=cookie
+        )
+        self.assertEqual(status, 400)
+        data = json.loads(body.decode())
+        self.assertEqual(data.get("error"), "SUBDIR_NOT_FOUND")
+
+        # Reset DIST_ROOT back
+        config.DIST_ROOT = None
+        config.HOST_DIST_ROOT = ""
+        publisher.update_state({"mods_subdir": "client_mods"})
+
 if __name__ == "__main__":
     unittest.main()
 

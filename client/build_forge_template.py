@@ -1,355 +1,198 @@
-import subprocess, tempfile, os, zipfile, hashlib
+#!/usr/bin/env python3
+"""
+ModSync - Forge 1.20.1 客户端通用更新器模板构建脚本
+
+设计说明：
+- 编译真实 Java 源文件 (不包含任何内嵌硬编码源码字符串)
+- 使用精确的 6 个核心依赖库 (不盲目全盘扫描未知 JAR)
+- 5 个通用公共依赖自动从官方 Maven (MinecraftForge / Maven Central) 获取并缓存
+- Minecraft 1.20.1 SRG 客户端库通过标准路径、参数 (--mc-libs) 或环境变量 (MC_LIBRARIES_DIR) 提供
+- 若缺少必要依赖，输出清晰友好的定位说明，消除对特定机器路径的隐含依赖
+"""
+
+import argparse
+import hashlib
+import os
+import platform
+import subprocess
+import sys
+import tempfile
+import urllib.request
+import zipfile
 from pathlib import Path
 
-# Paths
-script_dir = Path(__file__).resolve().parent
-repo_root = script_dir.parent
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parent
+CACHE_DIR = SCRIPT_DIR / ".cache" / "libraries"
 
-# JDK javac path (can be configured via JAVA_HOME or system PATH)
-user_home = Path.home()
-default_javac = user_home / 'AppData/Roaming/.minecraft/runtime/java-runtime-gamma-snapshot/bin/javac.exe'
-java_home = os.environ.get('JAVA_HOME')
-
-if java_home and (Path(java_home) / 'bin/javac.exe').exists():
-    javac = (Path(java_home) / 'bin/javac.exe').as_posix()
-elif java_home and (Path(java_home) / 'bin/javac').exists():
-    javac = (Path(java_home) / 'bin/javac').as_posix()
-elif default_javac.exists():
-    javac = default_javac.as_posix()
-else:
-    javac = 'javac'
-
-# Collect Minecraft libraries from environment or standard paths
-mc_libs_dir = os.environ.get('MC_LIBRARIES_DIR')
-candidate_lib_dirs = [
-    Path(mc_libs_dir) if mc_libs_dir else None,
-    user_home / 'AppData/Roaming/.minecraft/libraries',
-    Path('E:/Minecraft/.minecraft/libraries')
+# 公共标准依赖 (可直接从官方 Maven 仓库拉取并缓存)
+MAVEN_DEPENDENCIES = [
+    {
+        "filename": "forge-1.20.1-47.3.33-universal.jar",
+        "url": "https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.3.33/forge-1.20.1-47.3.33-universal.jar",
+        "sha256": "3cb49a4059062eb142e0ba3a22830f8fe697f394c8b21baaeeb3a595cb6cf4cb"
+    },
+    {
+        "filename": "fmlcore-1.20.1-47.3.33.jar",
+        "url": "https://maven.minecraftforge.net/net/minecraftforge/fmlcore/1.20.1-47.3.33/fmlcore-1.20.1-47.3.33.jar",
+        "sha256": "47a3e74cfa7d10b7db8a883733075c3fce4206584c688c27932c5e5eeea89ce5"
+    },
+    {
+        "filename": "forgespi-7.0.1.jar",
+        "url": "https://maven.minecraftforge.net/net/minecraftforge/forgespi/7.0.1/forgespi-7.0.1.jar",
+        "sha256": "82dc76bfd739c3621434190c10ee08c105553e20ec42ef3ff36665b1695ae535"
+    },
+    {
+        "filename": "eventbus-6.0.5.jar",
+        "url": "https://maven.minecraftforge.net/net/minecraftforge/eventbus/6.0.5/eventbus-6.0.5.jar",
+        "sha256": "631cb1c7f4625b18cebe255f00e5ce28608e9860b0ec8cb9ebf2c8efab6bc216"
+    },
+    {
+        "filename": "javafmllanguage-1.20.1-47.3.33.jar",
+        "url": "https://maven.minecraftforge.net/net/minecraftforge/javafmllanguage/1.20.1-47.3.33/javafmllanguage-1.20.1-47.3.33.jar",
+        "sha256": "038bfd46dbfe3910c66289b4b0825f385c5df39c1b3531b4028308dc6fe8276f"
+    },
+    {
+        "filename": "mergetool-1.1.5-api.jar",
+        "url": "https://maven.minecraftforge.net/net/minecraftforge/mergetool/1.1.5/mergetool-1.1.5-api.jar",
+        "sha256": "4fc7feae961e680287ff1b17e4f8841496bfa75851d95c10fa2e8964d5dbf7ee"
+    },
+    {
+        "filename": "brigadier-1.0.18.jar",
+        "url": "https://libraries.minecraft.net/com/mojang/brigadier/1.0.18/brigadier-1.0.18.jar",
+        "sha256": "8d394235fb342b4125b2901dbd3c9074a383d47ad9acdb0df2b8f88ceb95cb2e"
+    },
+    {
+        "filename": "gson-2.10.1.jar",
+        "url": "https://repo1.maven.org/maven2/com/google/code/gson/gson/2.10.1/gson-2.10.1.jar",
+        "sha256": "b064375e2ad01eb7fe44a54c8c738e469796e6d1c9e05f639c063cf4eb41cc63"
+    }
 ]
 
-libs_path = None
-for c in candidate_lib_dirs:
-    if c and c.exists():
-        libs_path = c
-        break
+def find_javac() -> str:
+    java_home = os.environ.get("JAVA_HOME")
+    if java_home:
+        candidate = Path(java_home) / "bin" / ("javac.exe" if platform.system() == "Windows" else "javac")
+        if candidate.is_file():
+            return candidate.as_posix()
 
-libs = []
-srg_jar = None
-if libs_path:
-    for p in libs_path.rglob('*.jar'):
-        libs.append(p.as_posix())
-        if 'client-1.20.1' in p.name and 'srg' in p.name:
-            srg_jar = p
+    user_home = Path.home()
+    standard_jdks = [
+        user_home / "AppData/Roaming/.minecraft/runtime/java-runtime-gamma-snapshot/bin/javac.exe",
+        user_home / "AppData/Roaming/.minecraft/runtime/java-runtime-gamma/bin/javac.exe",
+        user_home / "AppData/Roaming/.minecraft/runtime/java-runtime-epsilon/bin/javac.exe"
+    ]
+    for jdk in standard_jdks:
+        if jdk.is_file():
+            return jdk.as_posix()
 
-if srg_jar:
-    libs.append(srg_jar.as_posix())
+    return "javac"
 
-updater_core_src = (script_dir / 'src/main/java/com/modsync/updater/UpdaterCore.java').read_text(encoding='utf-8')
+def download_maven_dependencies() -> list[str]:
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    paths = []
+    for dep in MAVEN_DEPENDENCIES:
+        target = CACHE_DIR / dep["filename"]
+        if not target.is_file() or target.stat().st_size == 0:
+            print(f"[*] 正在从 Maven 下载依赖: {dep['filename']}...")
+            try:
+                req = urllib.request.Request(dep["url"], headers={"User-Agent": "Mozilla/5.0 (ModSync-Builder)"})
+                with urllib.request.urlopen(req, timeout=30) as resp, open(target, "wb") as f:
+                    f.write(resp.read())
+            except Exception as e:
+                print(f"[!] 从 Maven 仓库下载 {dep['filename']} 失败: {e}", file=sys.stderr)
+                if not target.is_file():
+                    sys.exit(1)
+        paths.append(target.as_posix())
+    return paths
 
-updater_mod_src = """package com.modsync.updater;
+def locate_client_srg(custom_libs_dir: str | None = None) -> str | None:
+    # 候选路径检查（消除对特定作者机器的写死依赖，按标准启动器与参数查找）
+    candidates = []
+    if custom_libs_dir:
+        candidates.append(Path(custom_libs_dir))
+    if os.environ.get("MC_LIBRARIES_DIR"):
+        candidates.append(Path(os.environ["MC_LIBRARIES_DIR"]))
+    if os.environ.get("MC_HOME"):
+        candidates.append(Path(os.environ["MC_HOME"]) / "libraries")
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.screens.TitleScreen;
-import net.minecraft.client.gui.screens.multiplayer.JoinMultiplayerScreen;
-import net.minecraft.network.chat.Component;
-import net.minecraftforge.client.event.ScreenEvent;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.fml.common.Mod;
+    user_home = Path.home()
+    if platform.system() == "Windows":
+        candidates.append(user_home / "AppData/Roaming/.minecraft/libraries")
+    elif platform.system() == "Darwin":
+        candidates.append(user_home / "Library/Application Support/minecraft/libraries")
+    else:
+        candidates.append(user_home / ".minecraft/libraries")
 
-@Mod("modsync")
-public final class UpdaterMod {
-    public UpdaterMod() {
-        MinecraftForge.EVENT_BUS.addListener(UpdaterMod::onScreenInit);
-    }
+    target_name_part = "client-1.20.1"
+    for base in candidates:
+        if base and base.is_dir():
+            srg_path = base / "net/minecraft/client/1.20.1-20230612.114412/client-1.20.1-20230612.114412-srg.jar"
+            if srg_path.is_file():
+                return srg_path.as_posix()
+            for p in base.glob(f"**/*{target_name_part}*srg*.jar"):
+                if p.is_file():
+                    return p.as_posix()
 
-    private static void onScreenInit(ScreenEvent.Init.Post event) {
-        if (event.getScreen() instanceof TitleScreen screen) {
-            event.addListener(Button.m_253074_(Component.m_237113_("整合包更新"), button ->
-                    Minecraft.m_91087_().m_91152_(new UpdaterScreen(screen)))
-                    .m_252987_(Math.max(4, screen.f_96543_ - 110), Math.max(4, screen.f_96544_ - 48), 104, 20)
-                    .m_253136_());
-        } else if (event.getScreen() instanceof JoinMultiplayerScreen screen) {
-            event.addListener(Button.m_253074_(Component.m_237113_("§e§l【更新提示】§f进服提示模组版本不对？点此检查更新"), button ->
-                    Minecraft.m_91087_().m_91152_(new UpdaterScreen(screen)))
-                    .m_252987_(Math.max(4, screen.f_96543_ / 2 - 180), 8, 360, 20)
-                    .m_253136_());
-        }
-    }
-}
-"""
+    # 兜底：如果本地缓存已有该文件
+    cached_srg = CACHE_DIR / "client-1.20.1-srg.jar"
+    if cached_srg.is_file():
+        return cached_srg.as_posix()
 
-updater_screen_src = """package com.modsync.updater;
+    return None
 
-import java.util.*;
-import java.util.concurrent.atomic.AtomicBoolean;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.network.chat.Component;
-import net.minecraft.util.FormattedCharSequence;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
+def main():
+    parser = argparse.ArgumentParser(description="ModSync Forge 1.20.1 客户端通用更新器模板构建工具")
+    parser.add_argument("--mc-libs", dest="mc_libs", help="指定 Minecraft 运行库所在目录 (例如 .minecraft/libraries)")
+    parser.add_argument("--output", dest="output", help="输出的通用模板 JAR 路径")
+    args = parser.parse_args()
 
-@OnlyIn(Dist.CLIENT)
-public final class UpdaterScreen extends Screen {
-    private final Screen parent;
-    private UpdaterCore core;
-    private UpdaterCore.Plan plan;
-    private final AtomicBoolean cancel = new AtomicBoolean();
-    private volatile boolean busy;
-    private boolean overwrite = true;
-    private boolean repairArmed = false;
-    private String status = "点击【检查更新】连接发布器比对文件。";
-    private String details = "说明：\\n1. 普通更新保留自装 Mod，仅下载缺少项并替换更新项；\\n2. 修复模式会恢复为服主发布的标准列表，并清理多余 Mod（更新器本体受保护）；\\n3. 更新操作仅修改文件，需重启客户端后方可加载新模组。\\n\\n准备就绪后，请点击左下方【检查更新】。";
-    private List<FormattedCharSequence> lines = List.of();
-    private int page = 0;
-    private Button check, update, repair, mode, closeGame;
+    javac = find_javac()
+    print(f"[*] 使用 JDK 编译器: {javac}")
 
-    public UpdaterScreen(Screen parent) {
-        super(Component.m_237113_("整合包更新"));
-        this.parent = parent;
-    }
+    # 1. 准备 Maven 核心依赖库
+    classpath_jars = download_maven_dependencies()
 
-    @Override
-    protected void m_7856_() {
-        int left = Math.max(8, this.f_96543_ / 2 - 150), y = this.f_96544_ - 76;
-        check = this.m_142416_(Button.m_253074_(Component.m_237113_("检查更新"), b -> check()).m_252987_(left, y, 96, 20).m_253136_());
-        update = this.m_142416_(Button.m_253074_(Component.m_237113_("更新"), b -> apply(false)).m_252987_(left + 102, y, 96, 20).m_253136_());
-        repair = this.m_142416_(Button.m_253074_(Component.m_237113_(repairArmed ? "确认修复删除" : "修复"), b -> {
-            if (!repairArmed) {
-                repairArmed = true;
-                b.m_93666_(Component.m_237113_("确认修复删除"));
-                status = "警告：修复将删除下方列出的额外 Mod，再次点击此按钮确认执行；不备份。";
-                showPlan();
-            } else {
-                apply(true);
-            }
-        }).m_252987_(left + 204, y, 96, 20).m_253136_());
+    # 2. 定位 client-1.20.1-srg.jar
+    srg_jar = locate_client_srg(args.mc_libs)
+    if not srg_jar:
+        print("\n" + "=" * 60, file=sys.stderr)
+        print("[错误] 未找到 Minecraft 1.20.1 客户端映射库 (client-1.20.1-*-srg.jar)！", file=sys.stderr)
+        print("说明：由于 Minecraft 客户端二进制受 Mojang 最终用户协议保护，无法预打包分发。", file=sys.stderr)
+        print("请通过以下任意方式提供该运行库所在目录：", file=sys.stderr)
+        print("  1. 运行参数：python build_forge_template.py --mc-libs <.minecraft/libraries 路径>", file=sys.stderr)
+        print("  2. 环境变量：export MC_LIBRARIES_DIR=\"/path/to/.minecraft/libraries\"", file=sys.stderr)
+        print("  3. 或将 client-1.20.1-srg.jar 直接复制至 client/.cache/libraries/", file=sys.stderr)
+        print("=" * 60 + "\n", file=sys.stderr)
+        sys.exit(1)
 
-        mode = this.m_142416_(Button.m_253074_(Component.m_237113_(overwrite ? "同名不同：覆盖" : "同名不同：跳过"), b -> {
-            overwrite = !overwrite;
-            b.m_93666_(Component.m_237113_(overwrite ? "同名不同：覆盖" : "同名不同：跳过"));
-        }).m_252987_(left, y + 24, 146, 20).m_253136_());
+    print(f"[+] 找到 Minecraft 1.20.1 SRG 客户端库: {srg_jar}")
+    classpath_jars.append(srg_jar)
 
-        closeGame = this.m_142416_(Button.m_253074_(Component.m_237113_("关闭游戏"), b -> Minecraft.m_91087_().m_91399_()).m_252987_(left + 154, y + 24, 146, 20).m_253136_());
+    # 3. 收集并检查源文件
+    core_src = SCRIPT_DIR / "src/main/java/com/modsync/updater/UpdaterCore.java"
+    forge_dir = SCRIPT_DIR / "forge-1.20.1"
+    mod_src = forge_dir / "src/main/java/com/modsync/updater/UpdaterMod.java"
+    screen_src = forge_dir / "src/main/java/com/modsync/updater/UpdaterScreen.java"
+    mods_toml = forge_dir / "src/main/resources/META-INF/mods.toml"
+    zh_cn_json = forge_dir / "src/main/resources/assets/modsync/lang/zh_cn.json"
 
-        this.m_142416_(Button.m_253074_(Component.m_237113_("上页"), b -> { page = Math.max(0, page - 1); }).m_252987_(left, this.f_96544_ - 26, 60, 20).m_253136_());
-        this.m_142416_(Button.m_253074_(Component.m_237113_("下页"), b -> { page = Math.min(maxPage(), page + 1); }).m_252987_(left + 66, this.f_96544_ - 26, 60, 20).m_253136_());
-        this.m_142416_(Button.m_253074_(Component.m_237113_("取消 / 返回"), b -> m_7379_()).m_252987_(left + 154, this.f_96544_ - 26, 146, 20).m_253136_());
+    required_sources = [core_src, mod_src, screen_src, mods_toml, zh_cn_json]
+    for s in required_sources:
+        if not s.is_file():
+            print(f"[!] 缺失源码或资源文件: {s.as_posix()}", file=sys.stderr)
+            sys.exit(1)
 
-        wrap();
-        refresh();
-    }
-
-    private int perPage() { return Math.max(1, (this.f_96544_ - 150) / 12); }
-    private int maxPage() { return Math.max(0, (lines.size() - 1) / perPage()); }
-    private void wrap() {
-        lines = this.f_96547_.m_92923_(Component.m_237113_(details), Math.max(100, this.f_96543_ - 36));
-        page = Math.min(page, maxPage());
-    }
-
-    private void refresh() {
-        if (check == null) return;
-        check.f_93623_ = !busy;
-        update.f_93623_ = !busy && plan != null;
-        repair.f_93623_ = !busy && plan != null;
-        mode.f_93623_ = !busy;
-        closeGame.f_93623_ = !busy;
-    }
-
-    private void work(Runnable task) {
-        busy = true;
-        cancel.set(false);
-        refresh();
-        Thread t = new Thread(() -> {
-            try {
-                task.run();
-            } finally {
-                Minecraft.m_91087_().execute(() -> {
-                    busy = false;
-                    refresh();
-                });
-            }
-        }, "modsync-worker");
-        t.setDaemon(true);
-        t.start();
-    }
-
-    private void ui(Runnable task) { Minecraft.m_91087_().execute(task); }
-
-    private void check() {
-        plan = null;
-        repairArmed = false;
-        if (repair != null) repair.m_93666_(Component.m_237113_("修复"));
-        status = "正在连接并比对文件，请稍候……";
-        work(() -> {
-            try {
-                if (core == null) {
-                    core = new UpdaterCore(Minecraft.m_91087_().f_91069_.toPath(), UpdaterCore.Settings.embedded());
-                }
-                var found = core.scan(core.fetch());
-                ui(() -> {
-                    plan = found;
-                    status = found.summary();
-                    showPlan();
-                });
-            } catch (Exception e) {
-                ui(() -> {
-                    status = "检查失败：" + UpdaterCore.friendly(e);
-                    details = "未改动本地文件。\\n请确认：\\n1. 电脑与更新服务器处于同一网络；\\n2. 发布器服务已启动；\\n3. 客户端未被禁用下载。";
-                    wrap();
-                });
-            }
-        });
-    }
-
-    private void showPlan() {
-        if (plan == null) return;
-        StringBuilder s = new StringBuilder("发布版本：").append(plan.manifest().release_id()).append("\\n\\n")
-                .append(Objects.requireNonNullElse(plan.manifest().notes(), "")).append("\\n\\n【本地比对差异】\\n");
-
-        if (plan.missing().isEmpty() && plan.changed().isEmpty() && plan.removed().isEmpty()) {
-            s.append("本地与当前发布列表完全一致，无需更新。\\n");
-        } else {
-            plan.missing().forEach(e -> s.append("+ 缺少 ").append(e.path()).append('\\n'));
-            plan.changed().forEach(e -> s.append("~ 不同 ").append(e.path()).append('\\n'));
-            plan.removed().forEach(e -> s.append("- 旧受管 ").append(e).append('\\n'));
-        }
-
-        if (repairArmed) {
-            s.append("\\n【修复将直接删除以下额外Mod】：\\n");
-            if (plan.extras().isEmpty()) {
-                s.append("（无额外 Mod 需要删除）\\n");
-            } else {
-                plan.extras().forEach(e -> s.append("- ").append(e).append('\\n'));
-            }
-        } else {
-            s.append("\\n自装/未知Mod：").append(plan.extras().size()).append(" 个（普通更新将予以保留）。");
-        }
-        details = s.toString();
-        page = 0;
-        wrap();
-    }
-
-    private void apply(boolean repairing) {
-        if (plan == null || busy) return;
-        var selected = plan;
-        boolean replace = overwrite;
-        status = "开始执行更新……";
-        work(() -> {
-            try {
-                var result = core.apply(selected, replace, repairing, cancel::get, message -> ui(() -> status = message));
-                ui(() -> {
-                    plan = null;
-                    repairArmed = false;
-                    if (repair != null) repair.m_93666_(Component.m_237113_("修复"));
-                    status = result.summary();
-                    details = result.summary() + "\\n\\n"
-                            + (result.failures().isEmpty() ? "全部操作已成功完成。" : "未完成的项目：\\n" + String.join("\\n", result.failures()))
-                            + "\\n\\n提示：当前游戏仍运行旧代码。请点击下方“关闭游戏”按钮正常退出，再从启动器重新启动即可生效。\\n若提示文件占用失败，请关闭游戏后再试。";
-                    page = 0;
-                    wrap();
-                });
-            } catch (Exception e) {
-                ui(() -> {
-                    plan = null;
-                    status = "未全部完成：" + UpdaterCore.friendly(e);
-                    details = status + "\\n已成功下载并校验的文件保留在本地；请重新检查。";
-                    wrap();
-                });
-            }
-        });
-    }
-
-    @Override
-    public void m_7379_() {
-        if (busy) {
-            cancel.set(true);
-            status = "正在取消操作，请等待当前网络请求结束……";
-            return;
-        }
-        Minecraft.m_91087_().m_91152_(parent);
-    }
-
-    @Override
-    public void m_88315_(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        this.m_280273_(g);
-        super.m_88315_(g, mouseX, mouseY, partialTick);
-        g.m_280509_(10, 38, this.f_96543_ - 10, this.f_96544_ - 82, 0x88000000);
-        g.m_280653_(this.f_96547_, this.f_96539_, this.f_96543_ / 2, 10, 0xFFFFFF);
-        g.m_280488_(this.f_96547_, this.f_96547_.m_92834_(status, Math.max(100, this.f_96543_ - 32)), 16, 25, 0xFFFFFF);
-        int from = page * perPage(), end = Math.min(lines.size(), from + perPage());
-        for (int i = from; i < end; i++) {
-            g.m_280648_(this.f_96547_, lines.get(i), 16, 44 + (i - from) * 12, 0xFFFFFF);
-        }
-        String pageStr = (page + 1) + " / " + (maxPage() + 1);
-        g.m_280488_(this.f_96547_, pageStr, this.f_96543_ - 16 - this.f_96547_.m_92895_(pageStr), this.f_96544_ - 95, 0x888888);
-    }
-}
-"""
-
-mods_toml = """modLoader="javafml"
-loaderVersion="[47,)"
-license="MIT"
-
-[[mods]]
-modId="modsync"
-version="0.2.0"
-displayName="ModSync · 客户端更新"
-description='''轻量 Minecraft 客户端模组同步更新器。'''
-displayTest="IGNORE_ALL_VERSION"
-
-[[dependencies.modsync]]
-modId="forge"
-mandatory=true
-versionRange="[47.1.0,)"
-ordering="NONE"
-side="BOTH"
-
-[[dependencies.modsync]]
-modId="minecraft"
-mandatory=true
-versionRange="[1.20.1, 1.20.2)"
-ordering="NONE"
-side="BOTH"
-"""
-
-zh_cn_json = """{
-  "modmenu.nameTranslation.modsync": "ModSync · 客户端更新"
-}
-"""
-
-server_json = """{
-  "endpoint": "",
-  "packId": "",
-  "token": ""
-}
-"""
-
-manifest_mf = """Manifest-Version: 1.0
-Implementation-Title: ModSync Forge 1.20.1 Client
-Implementation-Version: 0.2.0
-Specification-Title: ModSync
-Specification-Version: 0.2.0
-"""
-
-def build():
+    # 4. 执行干净编译
     with tempfile.TemporaryDirectory() as td:
-        src_dir = Path(td) / "src" / "com" / "modsync" / "updater"
-        src_dir.mkdir(parents=True)
         out_classes = Path(td) / "classes"
         out_classes.mkdir()
 
-        (src_dir / "UpdaterCore.java").write_text(updater_core_src, encoding="utf-8")
-        (src_dir / "UpdaterMod.java").write_text(updater_mod_src, encoding="utf-8")
-        (src_dir / "UpdaterScreen.java").write_text(updater_screen_src, encoding="utf-8")
-
+        java_files = [core_src.as_posix(), mod_src.as_posix(), screen_src.as_posix()]
         argfile = Path(td) / "javac_args.txt"
         arg_lines = [
             "-cp",
-            ";".join(libs),
+            ";".join(classpath_jars) if platform.system() == "Windows" else ":".join(classpath_jars),
             "-d",
             out_classes.as_posix(),
             "-source",
@@ -358,37 +201,53 @@ def build():
             "17",
             "-encoding",
             "utf-8"
-        ] + [p.as_posix() for p in src_dir.glob("*.java")]
+        ] + java_files
+
         argfile.write_text("\n".join(arg_lines) + "\n", encoding="utf-8")
 
+        print("[*] 正在编译 Forge 1.20.1 源码 (Java 17 字节码)...")
         cmd = [javac, f"@{argfile.as_posix()}"]
         res = subprocess.run(cmd, capture_output=True, text=True)
         if res.returncode != 0:
-            print("Compilation failed:", res.stderr)
-            return False
+            print("[!] 编译失败:", res.stderr, file=sys.stderr)
+            sys.exit(1)
 
-        target_dir = repo_root / 'server/app/mod_templates'
-        target_dir.mkdir(parents=True, exist_ok=True)
-        out_jar = target_dir / 'modsync-forge-1.20.1-0.2.0.jar'
+        # 5. 打包生成纯净通用模板 JAR
+        if args.output:
+            out_jar = Path(args.output).resolve()
+        else:
+            out_jar = REPO_ROOT / "server/app/mod_templates/modsync-forge-1.20.1-0.2.0.jar"
 
-        with zipfile.ZipFile(out_jar, 'w', compression=zipfile.ZIP_DEFLATED) as z:
-            z.writestr('META-INF/MANIFEST.MF', manifest_mf)
-            z.writestr('META-INF/mods.toml', mods_toml)
-            z.writestr('assets/modsync/lang/zh_cn.json', zh_cn_json)
-            z.writestr('modsync-server.json', server_json)
+        out_jar.parent.mkdir(parents=True, exist_ok=True)
 
-            for root, dirs, files in os.walk(out_classes):
+        manifest_mf = (
+            "Manifest-Version: 1.0\r\n"
+            "Implementation-Title: ModSync Forge 1.20.1 Client\r\n"
+            "Implementation-Version: 0.2.0\r\n"
+            "Specification-Title: ModSync\r\n"
+            "Specification-Version: 0.2.0\r\n\r\n"
+        )
+        server_json = '{\n  "endpoint": "",\n  "packId": "",\n  "token": ""\n}\n'
+
+        with zipfile.ZipFile(out_jar, "w", compression=zipfile.ZIP_DEFLATED) as z:
+            z.writestr("META-INF/MANIFEST.MF", manifest_mf)
+            z.write(mods_toml, "META-INF/mods.toml")
+            z.write(zh_cn_json, "assets/modsync/lang/zh_cn.json")
+            z.writestr("modsync-server.json", server_json)
+
+            for root, _, files in os.walk(out_classes):
                 for f in files:
                     full_p = Path(root) / f
                     rel_p = full_p.relative_to(out_classes).as_posix()
                     z.write(full_p, rel_p)
 
         sha256 = hashlib.sha256(out_jar.read_bytes()).hexdigest()
-        print(f"SUCCESS: Built {out_jar.name}")
-        print(f"Path: {out_jar.as_posix()}")
-        print(f"Size: {out_jar.stat().st_size} bytes")
-        print(f"SHA-256: {sha256}")
-        return True
+        print("=" * 60)
+        print(f"[+] 成功构建通用模板: {out_jar.name}")
+        print(f"    输出路径: {out_jar.as_posix()}")
+        print(f"    文件大小: {out_jar.stat().st_size} 字节")
+        print(f"    SHA-256 : {sha256}")
+        print("=" * 60)
 
-if __name__ == '__main__':
-    build()
+if __name__ == "__main__":
+    main()
