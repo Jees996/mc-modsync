@@ -65,9 +65,11 @@ ModSync/
 
 ### 1. 服务端一键部署 (推荐)
 
-在 Linux 服务器（Debian / Ubuntu / CentOS 等）上执行一键部署脚本：
+在 Linux 服务器（Debian / Ubuntu / CentOS 等）上克隆项目并执行一键部署脚本：
 
 ```bash
+git clone https://github.com/Jees996/mc-modsync.git
+cd mc-modsync
 chmod +x install.sh && ./install.sh
 ```
 
