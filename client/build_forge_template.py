@@ -176,8 +176,9 @@ def main():
     screen_src = forge_dir / "src/main/java/com/modsync/updater/UpdaterScreen.java"
     mods_toml = forge_dir / "src/main/resources/META-INF/mods.toml"
     zh_cn_json = forge_dir / "src/main/resources/assets/modsync/lang/zh_cn.json"
+    pack_mcmeta = forge_dir / "src/main/resources/pack.mcmeta"
 
-    required_sources = [core_src, mod_src, screen_src, mods_toml, zh_cn_json]
+    required_sources = [core_src, mod_src, screen_src, mods_toml, zh_cn_json, pack_mcmeta]
     for s in required_sources:
         if not s.is_file():
             print(f"[!] 缺失源码或资源文件: {s.as_posix()}", file=sys.stderr)
@@ -233,6 +234,7 @@ def main():
             z.writestr("META-INF/MANIFEST.MF", manifest_mf)
             z.write(mods_toml, "META-INF/mods.toml")
             z.write(zh_cn_json, "assets/modsync/lang/zh_cn.json")
+            z.write(pack_mcmeta, "pack.mcmeta")
             z.writestr("modsync-server.json", server_json)
 
             for root, _, files in os.walk(out_classes):
@@ -247,6 +249,26 @@ def main():
         print(f"    输出路径: {out_jar.as_posix()}")
         print(f"    文件大小: {out_jar.stat().st_size} 字节")
         print(f"    SHA-256 : {sha256}")
+
+        templates_file = out_jar.parent / "templates.json"
+        if templates_file.is_file() and not args.output:
+            try:
+                import json
+                with open(templates_file, "r", encoding="utf-8") as tf:
+                    t_data = json.load(tf)
+                updated = False
+                for t in t_data:
+                    if t.get("id") == "forge-1.20.1":
+                        t["sha256"] = sha256
+                        updated = True
+                if updated:
+                    with open(templates_file, "w", encoding="utf-8") as tf:
+                        json.dump(t_data, tf, indent=2, ensure_ascii=False)
+                        tf.write("\n")
+                    print(f"[+] 已同步更新模板清单 sha256: {templates_file.as_posix()}")
+            except Exception as e:
+                print(f"[!] 同步更新 templates.json 失败: {e}", file=sys.stderr)
+
         print("=" * 60)
 
 if __name__ == "__main__":
