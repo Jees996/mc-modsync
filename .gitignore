@@ -23,6 +23,7 @@ client_mods/
 build/
 bin/
 out/
+*-client.jar
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/**/build/
 
