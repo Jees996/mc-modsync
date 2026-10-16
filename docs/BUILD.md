@@ -8,12 +8,32 @@
 
 | 目标版本 | 目标加载器 | 推荐 JDK 版本 | 构建工具 |
 | :--- | :--- | :--- | :--- |
+| **Fabric 26.3** | Fabric Loader 0.19.0+ | **JDK 25** | Python 3.10+ & JDK 25 `javac` |
 | **NeoForge 26.1.2** | NeoForge 26.1.2+ | **JDK 25** | Gradle 9.2+ (内置 Wrapper) |
 | **Forge 1.20.1** | Forge 47.1.0+ | **JDK 17** | Python 3.10+ & JDK 17 `javac` |
 
 ---
 
-## 1. 构建 NeoForge 26.1.2 客户端更新器模板
+## 1. 构建 Fabric 26.3 客户端更新器模板
+
+Fabric 26.3 采用原生 Mojang 映射及精简依赖构建。
+
+### 构建步骤：
+
+```bash
+cd client
+# 执行构建，自动探测 JDK 25 及运行库（或通过 --mc-dir 指定）
+python build_fabric_template.py --mc-dir "/path/to/.minecraft"
+```
+
+### 产物位置：
+`server/app/mod_templates/modsync-fabric-26.3-0.2.0.jar`
+
+构建完成后，将自动生成纯净通用模板并同步注册至 `templates.json`。
+
+---
+
+## 2. 构建 NeoForge 26.1.2 客户端更新器模板
 
 NeoForge 26.1.2 采用官方推荐的 `net.neoforged.moddev` 插件管理构建。
 
@@ -36,7 +56,7 @@ export PATH="$JAVA_HOME/bin:$PATH"
 
 ---
 
-## 2. 构建 Forge 1.20.1 客户端更新器模板
+## 3. 构建 Forge 1.20.1 客户端更新器模板
 
 Forge 1.20.1 采用轻量精确依赖编译流程，无需耗费长时间运行完整的反编译任务。
 
@@ -64,7 +84,7 @@ python build_forge_template.py --mc-libs "/path/to/.minecraft/libraries"
 
 ---
 
-## 3. 产物纯净度校验
+## 4. 产物纯净度校验
 
 无论通过何种方式构建模板，均可通过以下命令校验模板内部确实不包含任何真实 IP 或私有密钥：
 

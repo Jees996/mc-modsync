@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "modsync",
+  "version": "0.2.0",
+  "name": "ModSync · 客户端更新",
+  "description": "轻量 Minecraft 客户端模组同步更新器。",
+  "authors": [
+    "ModSync Team"
+  ],
+  "contact": {
+    "homepage": "https://github.com/Jees996/mc-modsync"
+  },
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.modsync.updater.UpdaterMod"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.0",
+    "minecraft": ">=26.3 <26.4",
+    "fabric-screen-api-v1": "*"
+  },
+  "suggests": {
+    "fabric-api": "*"
+  }
+}

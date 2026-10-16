@@ -531,6 +531,37 @@ class PublisherEndToEndTest(unittest.TestCase):
             self.assertIn('modId="forge"', mods_toml)
             self.assertIn('versionRange="[1.20.1, 1.20.2)"', mods_toml)
 
+    def test_18b_generate_fabric_updater_jar(self):
+        """18b. Admin can generate Fabric 26.3 updater JAR with correct metadata and config"""
+        cookie, csrf = self._admin_login()
+        endpoint = "http://192.168.2.22:25580"
+
+        status, headers, body = self._http_request(
+            "POST", "/api/admin/generate-updater",
+            data={"template_id": "fabric-26.3", "client_endpoint": endpoint},
+            headers={"X-CSRF-Token": csrf}, cookie=cookie
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(headers.get("Content-Type"), "application/java-archive")
+        self.assertIn("modsync-fabric-26.3-client.jar", headers.get("Content-Disposition", ""))
+
+        import io, zipfile
+        with zipfile.ZipFile(io.BytesIO(body), "r") as z:
+            cfg_bytes = z.read("modsync-server.json")
+            cfg = json.loads(cfg_bytes.decode("utf-8"))
+            self.assertEqual(cfg["endpoint"], endpoint)
+            self.assertEqual(cfg["packId"], "test-pack")
+            self.assertEqual(cfg["token"], "test_client_token_abc")
+
+            mod_json_str = z.read("fabric.mod.json").decode("utf-8")
+            mod_json = json.loads(mod_json_str)
+            self.assertEqual(mod_json["id"], "modsync")
+            self.assertEqual(mod_json["environment"], "client")
+            self.assertIn("com.modsync.updater.UpdaterMod", mod_json["entrypoints"]["client"])
+            self.assertIn("fabricloader", mod_json["depends"])
+            self.assertIn("minecraft", mod_json["depends"])
+            self.assertTrue(any("UpdaterScreen.class" in n for n in z.namelist()))
+
     def test_19_runtime_config_api(self):
         """19. Admin can get and update runtime configuration dynamically"""
         cookie, csrf = self._admin_login()

@@ -24,5 +24,18 @@
     "status_label": "已验证",
     "sha256": "8fa337791cad80652e9f8cb94a157fee70783cebbfd4c2a2fb4b2ec8098db075",
     "notes": "Forge 1.20.1 客户端推荐版本，已在 Forge 47.3.33 环境通过测试，兼容 47.1.0+"
+  },
+  {
+    "id": "fabric-26.3",
+    "filename": "modsync-fabric-26.3-0.2.0.jar",
+    "mod_version": "0.2.0",
+    "loader": "Fabric",
+    "mc_range": "[26.3, 26.4)",
+    "loader_range": "[0.19.0, )",
+    "java_version": "Java 25+",
+    "status": "verified",
+    "status_label": "已验证",
+    "sha256": "ddd2ec502bbfb714a4f7a9298193d13ae5deb00e256b7e64a546c2606c4bc67d",
+    "notes": "Fabric 26.3 客户端推荐版本，已在 Fabric Loader 0.19.5 与 Fabric API 0.162.0 环境通过测试"
   }
 ]
