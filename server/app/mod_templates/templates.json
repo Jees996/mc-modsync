@@ -35,7 +35,7 @@
     "java_version": "Java 25+",
     "status": "verified",
     "status_label": "已验证",
-    "sha256": "ddd2ec502bbfb714a4f7a9298193d13ae5deb00e256b7e64a546c2606c4bc67d",
+    "sha256": "000699b1074120e205dbef54f918f77b6569800266f9df427a83b808db18057d",
     "notes": "Fabric 26.3 客户端推荐版本，已在 Fabric Loader 0.19.5 与 Fabric API 0.162.0 环境通过测试"
   }
 ]

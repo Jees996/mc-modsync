@@ -32,9 +32,12 @@ def find_javac() -> str:
     preferred_jdks = [
         user_home / "AppData/Roaming/.minecraft/runtime/java-runtime-epsilon/bin/javac.exe",
         user_home / "AppData/Roaming/.minecraft/runtime/java-runtime-epsilon/bin/javac",
-        Path("C:/Program Files/Java/jdk-25/bin/javac.exe"),
-        Path("D:/Java/jdk-25/bin/javac.exe"),
     ]
+    if platform.system() == "Windows":
+        for drive in ["C:", "D:", "E:", "F:"]:
+            preferred_jdks.append(Path(f"{drive}/Program Files/Java/jdk-25/bin/javac.exe"))
+            preferred_jdks.append(Path(f"{drive}/Java/jdk-25/bin/javac.exe"))
+
     for jdk in preferred_jdks:
         if jdk.is_file():
             return jdk.as_posix()
@@ -74,15 +77,21 @@ def locate_dependencies(mc_dir_arg: str | None = None) -> list[str]:
         search_dirs.append(Path(mc_dir_arg))
     if os.environ.get("MC_HOME"):
         search_dirs.append(Path(os.environ["MC_HOME"]))
+    if os.environ.get("MC_DIR"):
+        search_dirs.append(Path(os.environ["MC_DIR"]))
     if os.environ.get("MC_LIBRARIES_DIR"):
         search_dirs.append(Path(os.environ["MC_LIBRARIES_DIR"]).parent)
 
-    # 常见 Minecraft 安装目录
-    search_dirs.extend([
-        Path("E:/Minecraft/.minecraft"),
-        Path.home() / "AppData/Roaming/.minecraft",
-        Path.home() / ".minecraft",
-    ])
+    user_home = Path.home()
+    if platform.system() == "Windows":
+        search_dirs.append(user_home / "AppData/Roaming/.minecraft")
+        for drive in ["C:", "D:", "E:", "F:"]:
+            search_dirs.append(Path(f"{drive}/Minecraft/.minecraft"))
+            search_dirs.append(Path(f"{drive}/.minecraft"))
+    elif platform.system() == "Darwin":
+        search_dirs.append(user_home / "Library/Application Support/minecraft")
+    else:
+        search_dirs.append(user_home / ".minecraft")
 
     mc_jar = None
     loader_jar = None

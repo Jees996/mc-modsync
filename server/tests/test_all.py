@@ -534,7 +534,7 @@ class PublisherEndToEndTest(unittest.TestCase):
     def test_18b_generate_fabric_updater_jar(self):
         """18b. Admin can generate Fabric 26.3 updater JAR with correct metadata and config"""
         cookie, csrf = self._admin_login()
-        endpoint = "http://192.168.2.22:25580"
+        endpoint = "http://192.168.1.100:25580"
 
         status, headers, body = self._http_request(
             "POST", "/api/admin/generate-updater",
